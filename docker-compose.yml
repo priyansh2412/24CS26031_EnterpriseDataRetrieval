@@ -1,0 +1,16 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: rag
+      POSTGRES_PASSWORD: rag
+      POSTGRES_DB: rag
+    ports: ["5432:5432"]
+    volumes: [postgres_data:/var/lib/postgresql/data]
+  chroma:
+    image: chromadb/chroma:0.5.23
+    ports: ["8001:8000"]
+    volumes: [chroma_data:/chroma/chroma]
+volumes:
+  postgres_data:
+  chroma_data:

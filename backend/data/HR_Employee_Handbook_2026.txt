@@ -1,0 +1,68 @@
+================================================================================
+                    ATLAS ENTERPRISE - HR EMPLOYEE HANDBOOK 2026
+================================================================================
+Document Reference: HR-POLICY-2026-V4
+Effective Date: January 1, 2026
+Target Audience: All Full-time, Part-time, and Contract Employees
+
+--------------------------------------------------------------------------------
+1. CODE OF CONDUCT & WORKPLACE ETHICS
+--------------------------------------------------------------------------------
+1.1 Equal Opportunity & Inclusion:
+Atlas Enterprise is committed to maintaining a workplace free from discrimination
+and harassment. All employment decisions are based on merit, qualifications, and
+business needs.
+
+1.2 Integrity & Confidentiality:
+Employees must protect company proprietary information, trade secrets, and customer
+data. Sharing confidential data outside authorized channels is strictly prohibited.
+
+1.3 Professional Demeanor:
+Respectful communication, open collaboration, and accountability are core values expected
+from every team member across all communication channels and office locations.
+
+--------------------------------------------------------------------------------
+2. WORKING HOURS & REMOTE WORK POLICY
+--------------------------------------------------------------------------------
+2.1 Core Working Hours:
+Standard core business hours are 09:00 AM to 05:00 PM local time. Flexible timing may be
+arranged with manager approval.
+
+2.2 Hybrid & Remote Work Guidelines:
+- Employees are eligible for hybrid work (up to 3 days remote per week) subject to manager approval.
+- Remote work environments must maintain data security standards (encrypted VPN, secure Wi-Fi).
+- Core availability on company Slack/Teams is required during scheduled work hours.
+
+--------------------------------------------------------------------------------
+3. LEAVE & VACATION POLICY
+--------------------------------------------------------------------------------
+3.1 Paid Time Off (PTO):
+- Full-time employees accrue 22 business days of PTO annually.
+- Unused PTO up to 5 days can be carried over into the next calendar year.
+
+3.2 Sick & Medical Leave:
+- 10 days of paid sick leave are provided annually.
+- Doctor certification is required for medical absences exceeding 3 consecutive days.
+
+3.3 Parental & Family Leave:
+- Primary caregiver leave: 16 weeks fully paid.
+- Secondary caregiver leave: 6 weeks fully paid.
+
+--------------------------------------------------------------------------------
+4. BENEFITS, COMPENSATION & PERFORMANCE REVIEWS
+--------------------------------------------------------------------------------
+4.1 Performance Appraisals:
+Formal performance evaluations occur semi-annually (June and December). Promotions and
+salary adjustments are aligned with annual review results.
+
+4.2 Health & Wellness:
+Atlas Enterprise provides comprehensive health, dental, and vision insurance for all eligible
+employees and their dependents starting on Day 1 of employment.
+
+4.3 Learning & Professional Development:
+Each employee is allocated an annual stipend of $1,500 for courses, certifications, conferences,
+and technical books relevant to their professional role.
+
+================================================================================
+HR Department Contact: hr@example.com | Extension: 4004
+================================================================================
