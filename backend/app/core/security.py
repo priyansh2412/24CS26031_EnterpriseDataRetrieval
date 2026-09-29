@@ -25,6 +25,9 @@ def current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_
     if not user or not user.is_active: raise HTTPException(status_code=401, detail="Inactive user")
     return user
 
+get_current_user = current_user
+
+
 def require_role(*roles: Role):
     def checker(user: User = Depends(current_user)) -> User:
         if user.role not in roles: raise HTTPException(status_code=403, detail="Insufficient role")

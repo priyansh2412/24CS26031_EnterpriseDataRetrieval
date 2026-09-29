@@ -2,6 +2,87 @@ const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 export const token = () => localStorage.getItem("rag_token");
 
+export interface CompanyRoleItem {
+  id?: number;
+  name: string;
+  key: string;
+  rank_level: number;
+  description?: string;
+  permissions?: string[];
+}
+
+export interface SetupStatus {
+  is_initialized: boolean;
+  company_name?: string;
+}
+
+export interface SystemSetupPayload {
+  company_name: string;
+  roles: CompanyRoleItem[];
+  admin_email: string;
+  admin_password: string;
+}
+
+export interface UserProfile {
+  id: number;
+  email: string;
+  role: string;
+  role_key?: string;
+  rank_level: number;
+  is_active: boolean;
+}
+
+export interface AuditLogItem {
+  id: number;
+  user_id: number | null;
+  user_email: string | null;
+  user_role_key: string | null;
+  user_rank_level: number | null;
+  action: string;
+  resource_type: string;
+  resource_id: string | null;
+  severity: "INFO" | "WARNING" | "ERROR" | "CRITICAL";
+  detail: string | null;
+  created_at: string;
+}
+
+export interface SubordinateUserItem {
+  id: number;
+  email: string;
+  role_key: string;
+  rank_level: number;
+}
+
+export interface TeamMemberItem {
+  id: number;
+  user_id: number;
+  user_email: string;
+  user_role_key?: string;
+  user_rank_level?: number;
+  role_in_team: string;
+}
+
+export interface TeamItem {
+  id: number;
+  name: string;
+  project_name: string;
+  description?: string;
+  created_by_id: number;
+  created_at: string;
+  members: TeamMemberItem[];
+}
+
+export interface TeamChatMessageItem {
+  id: number;
+  team_id: number;
+  user_id: number;
+  user_email: string;
+  message: string;
+  response: string;
+  citations: Array<{ document_id: number; document_name: string; chunk_index: number; text: string; score: number }>;
+  created_at: string;
+}
+
 export async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -61,3 +142,4 @@ export async function forgotPassword(email: string): Promise<{ message: string }
     body: JSON.stringify({ email: email.trim() }),
   });
 }
+

@@ -12,6 +12,7 @@ import {
   AlertCircle,
   Sun,
   Moon,
+  FolderKanban,
 } from "lucide-react";
 import ChatPage from "./pages/ChatPage";
 import DocumentsPage from "./pages/DocumentsPage";
@@ -21,9 +22,9 @@ import DashboardPage from "./pages/DashboardPage";
 import UserManagementPage from "./pages/UserManagementPage";
 import AuditLogsPage from "./pages/AuditLogsPage";
 import SettingsPage from "./pages/SettingsPage";
-import { request, token } from "./api";
-
-export type User = { id: number; email: string; role: string };
+import SetupWizardPage from "./pages/SetupWizardPage";
+import TeamsPage from "./pages/TeamsPage";
+import { SetupStatus, UserProfile, request, token } from "./api";
 
 type NavRoute = {
   id: string;
@@ -36,20 +37,38 @@ type NavRoute = {
 const NAV_ITEMS: NavRoute[] = [
   { id: "dashboard", path: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { id: "chat", path: "/chat", label: "AI Search Assistant", icon: MessageSquare },
+  { id: "teams", path: "/teams", label: "Team Workspaces", icon: FolderKanban },
   { id: "documents", path: "/documents", label: "Knowledge Library", icon: Files },
   { id: "analytics", path: "/analytics", label: "Analytics & Insights", icon: BarChart3, roles: ["admin", "hr", "manager", "finance"] },
-  { id: "users", path: "/users", label: "User Management", icon: Users, roles: ["admin"] },
-  { id: "audit-logs", path: "/audit-logs", label: "Security Audit Logs", icon: Activity, roles: ["admin"] },
+  { id: "users", path: "/users", label: "User Management", icon: Users },
+  { id: "audit-logs", path: "/audit-logs", label: "Hierarchical Audit Logs", icon: Activity },
   { id: "settings", path: "/settings", label: "Workspace Settings", icon: Settings },
 ];
 
 export default function App() {
+  const [setupInitialized, setSetupInitialized] = useState<boolean | null>(null);
   const [authenticated, setAuthenticated] = useState(Boolean(token()));
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<UserProfile | null>(null);
   const [currentPath, setCurrentPath] = useState(window.location.pathname || "/dashboard");
   const [theme, setTheme] = useState<"light" | "dark">(() => {
     return (localStorage.getItem("rag_theme") as "light" | "dark") || "light";
   });
+
+  // 1. Check system setup initialization status on app load
+  const checkSetupStatus = () => {
+    request<SetupStatus>("/api/setup/status")
+      .then((status) => {
+        setSetupInitialized(status.is_initialized);
+      })
+      .catch(() => {
+        // Default to initialized if backend check fails
+        setSetupInitialized(true);
+      });
+  };
+
+  useEffect(() => {
+    checkSetupStatus();
+  }, []);
 
   useEffect(() => {
     localStorage.setItem("rag_theme", theme);
@@ -61,11 +80,10 @@ export default function App() {
 
   // Sync state with authentication & fetch user profile
   useEffect(() => {
-    if (authenticated) {
-      request<User>("/api/auth/me")
+    if (authenticated && setupInitialized) {
+      request<UserProfile>("/api/auth/me")
         .then((userData) => {
           setUser(userData);
-          // Default root path redirect to /dashboard
           if (window.location.pathname === "/" || window.location.pathname === "") {
             navigate("/dashboard");
           }
@@ -75,7 +93,7 @@ export default function App() {
           setAuthenticated(false);
         });
     }
-  }, [authenticated]);
+  }, [authenticated, setupInitialized]);
 
   // Handle browser back/forward buttons
   useEffect(() => {
@@ -91,21 +109,31 @@ export default function App() {
     setCurrentPath(path);
   };
 
+  // Render Setup Wizard if system onboarding setup is required
+  if (setupInitialized === false) {
+    return (
+      <SetupWizardPage
+        onSetupCompleted={() => {
+          setSetupInitialized(true);
+        }}
+      />
+    );
+  }
+
   if (!authenticated) {
     return <LoginPage onSuccess={() => setAuthenticated(true)} />;
   }
 
-  const userRole = user?.role || "employee";
+  const userRole = user?.role_key || user?.role || "employee";
 
   // Filter navigation items by role access
   const allowedNav = NAV_ITEMS.filter((item) => {
     if (!item.roles) return true;
-    return item.roles.includes(userRole);
+    return item.roles.includes(user?.role || "employee");
   });
 
-  // Verify route authorization for direct URL entries
   const activeNavItem = NAV_ITEMS.find((item) => item.path === currentPath);
-  const isAuthorized = !activeNavItem?.roles || activeNavItem.roles.includes(userRole);
+  const isAuthorized = !activeNavItem?.roles || activeNavItem.roles.includes(user?.role || "employee");
 
   return (
     <main className={`app-shell ${theme}-theme`}>
@@ -153,7 +181,9 @@ export default function App() {
             <div className="avatar">{user?.email?.[0]?.toUpperCase() || "A"}</div>
             <div className="profile-details">
               <strong>{user?.email?.split("@")[0] || "User"}</strong>
-              <span className={`role-badge ${userRole}`}>{userRole}</span>
+              <span className={`role-badge ${userRole}`}>
+                Rank {user?.rank_level ?? 5}: {userRole}
+              </span>
             </div>
             <button
               onClick={() => {
@@ -193,7 +223,7 @@ export default function App() {
             </button>
 
             <div className="top-user-pill">
-              <span className={`role-badge ${userRole}`}>{userRole.toUpperCase()}</span>
+              <span className={`role-badge ${userRole}`}>RANK {user?.rank_level ?? 5} ({userRole.toUpperCase()})</span>
               <span className="user-email-tag">{user?.email}</span>
             </div>
           </div>
@@ -213,13 +243,15 @@ export default function App() {
 
           {currentPath === "/chat" && <ChatPage />}
 
+          {currentPath === "/teams" && <TeamsPage currentUser={user} />}
+
           {currentPath === "/documents" && <DocumentsPage />}
 
           {currentPath === "/analytics" && isAuthorized && <AnalyticsPage />}
 
-          {currentPath === "/users" && isAuthorized && <UserManagementPage />}
+          {currentPath === "/users" && <UserManagementPage currentUser={user} />}
 
-          {currentPath === "/audit-logs" && isAuthorized && <AuditLogsPage />}
+          {currentPath === "/audit-logs" && <AuditLogsPage />}
 
           {currentPath === "/settings" && <SettingsPage user={user} />}
         </section>
@@ -227,4 +259,5 @@ export default function App() {
     </main>
   );
 }
+
 
