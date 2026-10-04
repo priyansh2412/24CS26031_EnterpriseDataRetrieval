@@ -74,6 +74,7 @@ class QueryLog(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     team_id: Mapped[int | None] = mapped_column(ForeignKey("teams.id"), nullable=True, index=True)
+    session_id: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
     query: Mapped[str] = mapped_column(Text)
     response: Mapped[str] = mapped_column(Text)
     retrieved_document_ids: Mapped[str] = mapped_column(Text, default="[]")

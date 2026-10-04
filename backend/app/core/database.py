@@ -37,6 +37,8 @@ def apply_compatible_migrations() -> None:
                 connection.execute(text("ALTER TABLE query_logs ADD COLUMN citations_json TEXT DEFAULT '[]'"))
             if "team_id" not in log_columns:
                 connection.execute(text("ALTER TABLE query_logs ADD COLUMN team_id INTEGER NULL"))
+            if "session_id" not in log_columns:
+                connection.execute(text("ALTER TABLE query_logs ADD COLUMN session_id VARCHAR(100) NULL"))
 
         if "users" in table_names:
             user_columns = {column["name"] for column in inspector.get_columns("users")}

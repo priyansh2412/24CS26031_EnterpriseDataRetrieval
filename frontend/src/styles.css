@@ -1582,6 +1582,7 @@ button:disabled {
 }
 
 .dash-module-card:hover {
+  background-color: #eae9fc;
   border-color: #2563eb;
   box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
   transform: translateY(-2px);
@@ -4050,4 +4051,237 @@ button:disabled {
   border-radius: 10px;
   border: 1px solid #cbd5e1;
   font-size: 13.5px;
+}
+
+/* ==========================================================================
+   AI SEARCH SESSIONS SPLIT LAYOUT & SIDEBAR
+   ========================================================================== */
+
+.chat-sessions-split-layout {
+  display: flex;
+  gap: 16px;
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+.sessions-sidebar-panel {
+  width: 300px;
+  flex-shrink: 0;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 18px;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.04);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.sessions-panel-header {
+  padding: 14px 16px;
+  border-bottom: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+
+.new-session-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: linear-gradient(135deg, #2563eb, #4f46e5);
+  color: #ffffff;
+  border: none;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 700;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
+  transition: all 0.2s ease;
+}
+
+.new-session-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(37, 99, 235, 0.35);
+  background: linear-gradient(135deg, #1d4ed8, #4338ca);
+}
+
+.sessions-list-wrap {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sessions-section-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10.5px;
+  font-weight: 800;
+  color: #64748b;
+  letter-spacing: 0.6px;
+  padding: 4px 6px;
+}
+
+.empty-sessions-note {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 30px 16px;
+  color: #94a3b8;
+  font-size: 12px;
+  gap: 8px;
+}
+
+.sessions-items-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.session-item-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  position: relative;
+}
+
+.session-item-card:hover {
+  border-color: #93c5fd;
+  background: #eff6ff;
+}
+
+.session-item-card.active {
+  background: #eff6ff;
+  border-color: #2563eb;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.12);
+}
+
+.session-card-icon {
+  color: #2563eb;
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.session-card-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.session-card-title {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.session-item-card.active .session-card-title {
+  color: #1d4ed8;
+}
+
+.session-card-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 10.5px;
+  color: #64748b;
+}
+
+.session-card-badge {
+  background: #e2e8f0;
+  color: #334155;
+  padding: 1px 6px;
+  border-radius: 9999px;
+  font-weight: 600;
+  font-size: 10px;
+}
+
+.session-item-card.active .session-card-badge {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.session-delete-btn {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  padding: 4px;
+  border-radius: 6px;
+  opacity: 0.6;
+  transition: all 0.15s ease;
+}
+
+.session-item-card:hover .session-delete-btn {
+  opacity: 1;
+}
+
+.session-delete-btn:hover {
+  color: #ef4444;
+  background: #fef2f2;
+}
+
+/* Dark Theme Overrides for Sessions Sidebar */
+.app-shell.dark-theme .sessions-sidebar-panel {
+  background: #0a0a0a;
+  border-color: #1f1f1f;
+  box-shadow: 0 4px 28px rgba(0, 0, 0, 0.9);
+}
+
+.app-shell.dark-theme .sessions-panel-header {
+  background: #141414;
+  border-bottom-color: #242424;
+}
+
+.app-shell.dark-theme .session-item-card {
+  background: #141414;
+  border-color: #242424;
+}
+
+.app-shell.dark-theme .session-item-card:hover {
+  background: #1c1c1c;
+  border-color: #3b82f6;
+}
+
+.app-shell.dark-theme .session-item-card.active {
+  background: #172554;
+  border-color: #3b82f6;
+  box-shadow: 0 0 16px rgba(59, 130, 246, 0.3);
+}
+
+.app-shell.dark-theme .session-card-title {
+  color: #ffffff;
+}
+
+.app-shell.dark-theme .session-item-card.active .session-card-title {
+  color: #93c5fd;
+}
+
+.app-shell.dark-theme .session-card-meta {
+  color: #a3a3a3;
+}
+
+.app-shell.dark-theme .session-card-badge {
+  background: #262626;
+  color: #e5e5e5;
+}
+
+.app-shell.dark-theme .session-delete-btn:hover {
+  color: #f87171;
+  background: #450a0a;
 }

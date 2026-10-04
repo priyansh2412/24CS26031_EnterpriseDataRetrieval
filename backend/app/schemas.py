@@ -78,6 +78,7 @@ class AskRequest(BaseModel):
     question: str = Field(min_length=2, max_length=4000)
     top_k: int = Field(default=5, ge=1, le=10)
     team_id: int | None = None
+    session_id: str | None = None
 
 
 class Citation(BaseModel):
@@ -92,6 +93,14 @@ class AskResponse(BaseModel):
     query_log_id: int
     answer: str
     citations: list[Citation]
+    session_id: str | None = None
+
+
+class ChatSessionOut(BaseModel):
+    session_id: str
+    title: str
+    created_at: str
+    message_count: int
 
 
 class DocumentOut(BaseModel):

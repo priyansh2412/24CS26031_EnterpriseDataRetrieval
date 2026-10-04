@@ -36,7 +36,7 @@ type NavRoute = {
 
 const NAV_ITEMS: NavRoute[] = [
   { id: "dashboard", path: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { id: "chat", path: "/chat", label: "AI Search Assistant", icon: MessageSquare },
+  { id: "chat", path: "/chat", label: "AI Search Sessions", icon: MessageSquare },
   { id: "teams", path: "/teams", label: "Team Workspaces", icon: FolderKanban },
   { id: "documents", path: "/documents", label: "Knowledge Library", icon: Files },
   { id: "analytics", path: "/analytics", label: "Analytics & Insights", icon: BarChart3, roles: ["admin", "hr", "manager", "finance"] },

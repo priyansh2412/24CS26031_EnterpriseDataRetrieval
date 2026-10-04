@@ -15,6 +15,10 @@ import {
   X,
   ChevronUp,
   ChevronDown,
+  Plus,
+  MessageSquare,
+  History,
+  Trash2,
 } from "lucide-react";
 import { request } from "../api";
 
@@ -28,6 +32,14 @@ export interface ChatMessage {
   query_log_id?: number;
   timestamp: string;
   feedbackGiven?: boolean | null;
+  session_id?: string;
+}
+
+export interface ChatSession {
+  session_id: string;
+  title: string;
+  created_at: string;
+  message_count: number;
 }
 
 interface DocItem {
@@ -48,6 +60,8 @@ interface DynamicQuery {
 }
 
 export default function ChatPage() {
+  const [sessions, setSessions] = useState<ChatSession[]>([]);
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputQuestion, setInputQuestion] = useState("");
   const [loading, setLoading] = useState(false);
@@ -61,27 +75,44 @@ export default function ChatPage() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const msgRefs = useRef<{ [id: string]: HTMLDivElement | null }>({});
 
+  // Fetch past search sessions from backend
+  const fetchSessions = async (autoSelectFirst = false) => {
+    try {
+      const sessList = await request<ChatSession[]>("/api/chat/sessions");
+      setSessions(sessList || []);
+      if (autoSelectFirst && sessList && sessList.length > 0 && !activeSessionId) {
+        setActiveSessionId(sessList[0].session_id);
+        loadSessionHistory(sessList[0].session_id);
+      }
+    } catch {
+      setSessions([]);
+    }
+  };
+
+  // Load chat history for a given search session
+  const loadSessionHistory = async (sessId: string) => {
+    try {
+      setLoading(true);
+      const history = await request<ChatMessage[]>(`/api/chat/history?session_id=${encodeURIComponent(sessId)}`);
+      setMessages(history || []);
+    } catch {
+      setMessages([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // On mount, load sessions list & select the latest session
+  useEffect(() => {
+    fetchSessions(true);
+  }, []);
+
   // Auto-scroll chat stream to bottom when new messages arrive (unless user is searching)
   useEffect(() => {
     if (!searchTerm.trim()) {
       chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }
   }, [messages, loading, searchTerm]);
-
-  // Load chat history from DB on component mount (tab switch / re-login)
-  useEffect(() => {
-    async function loadChatHistory() {
-      try {
-        const history = await request<ChatMessage[]>("/api/chat/history");
-        if (history && history.length > 0) {
-          setMessages(history);
-        }
-      } catch {
-        // Silently ignore if history is empty
-      }
-    }
-    loadChatHistory();
-  }, []);
 
   // Compute search match messages
   const searchMatches = searchTerm.trim()
@@ -193,6 +224,44 @@ export default function ChatPage() {
     loadDynamicPrompts();
   }, []);
 
+  // Handle starting a fresh new chat search session
+  const handleNewChat = () => {
+    setActiveSessionId(null);
+    setMessages([]);
+    setInputQuestion("");
+    setError("");
+    textareaRef.current?.focus();
+  };
+
+  // Switch to a selected past search session
+  const handleSelectSession = (sessionId: string) => {
+    if (activeSessionId === sessionId) return;
+    setActiveSessionId(sessionId);
+    setSearchTerm("");
+    loadSessionHistory(sessionId);
+  };
+
+  // Delete a specific search session
+  const handleDeleteSession = async (sessionId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await request(`/api/chat/sessions/${encodeURIComponent(sessionId)}`, { method: "DELETE" });
+      const updatedSessions = sessions.filter((s) => s.session_id !== sessionId);
+      setSessions(updatedSessions);
+      if (activeSessionId === sessionId) {
+        if (updatedSessions.length > 0) {
+          setActiveSessionId(updatedSessions[0].session_id);
+          loadSessionHistory(updatedSessions[0].session_id);
+        } else {
+          handleNewChat();
+        }
+      }
+    } catch (err) {
+      setError((err as Error).message || "Failed to delete session");
+    }
+  };
+
+  // Send a new query to current or new search session
   const handleSend = async (textToSend = inputQuestion) => {
     const queryText = textToSend.trim();
     if (!queryText || loading) return;
@@ -210,10 +279,13 @@ export default function ChatPage() {
     setLoading(true);
 
     try {
-      const result = await request<{ query_log_id: number; answer: string; citations: Citation[] }>("/api/chat/ask", {
-        method: "POST",
-        body: JSON.stringify({ question: queryText, top_k: 5 }),
-      });
+      const result = await request<{ query_log_id: number; answer: string; citations: Citation[]; session_id: string }>(
+        "/api/chat/ask",
+        {
+          method: "POST",
+          body: JSON.stringify({ question: queryText, top_k: 5, session_id: activeSessionId || undefined }),
+        }
+      );
 
       const assistantMessage: ChatMessage = {
         id: `ast-${Date.now()}`,
@@ -222,9 +294,16 @@ export default function ChatPage() {
         citations: result.citations,
         query_log_id: result.query_log_id,
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        session_id: result.session_id,
       };
 
       setMessages((prev) => [...prev, assistantMessage]);
+
+      // If it was a new chat session, register the newly generated session_id
+      if (!activeSessionId && result.session_id) {
+        setActiveSessionId(result.session_id);
+      }
+      fetchSessions();
     } catch (e) {
       setError((e as Error).message || "Failed to retrieve answer");
     } finally {
@@ -256,16 +335,18 @@ export default function ChatPage() {
   const lastAssistantMsg = [...messages].reverse().find((m) => m.sender === "assistant" && m.citations && m.citations.length > 0);
   const referencedFileNames = Array.from(new Set(lastAssistantMsg?.citations?.map((c) => c.document_name) || []));
 
+  const activeSessionObj = sessions.find((s) => s.session_id === activeSessionId);
+
   return (
     <div className="chat-page real-chatbot-layout">
       {/* Real Chatbot Page Header */}
       <header className="page-heading chatbot-top-header">
         <div>
           <div className="eyebrow chat-eyebrow">
-            <Sparkles size={14} /> INTELLIGENT AI KNOWLEDGE CHATBOT
+            <Sparkles size={14} /> AI SEARCH SESSIONS & CONVERSATIONAL ASSISTANT
           </div>
           <h1 className="chat-main-title">
-            Atlas <span className="highlight-text">Conversational AI</span>
+            Atlas <span className="highlight-text">Search Sessions</span>
           </h1>
         </div>
 
@@ -275,7 +356,7 @@ export default function ChatPage() {
             <Search size={15} className="search-icon" />
             <input
               type="text"
-              placeholder="Search in chat..."
+              placeholder="Search in active chat..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="header-search-input"
@@ -309,199 +390,252 @@ export default function ChatPage() {
         </div>
       </header>
 
-      {/* Main Spacious Chat Container */}
-      <div className="chatbot-spacious-container">
-        {/* Chat Feed Area */}
-        <div className="chat-feed-scroll">
-          {messages.length === 0 ? (
-            <div className="chatbot-welcome-state">
-              <div className="welcome-avatar-glow">
-                <Bot size={36} />
-              </div>
-              <h2>How can I help you today?</h2>
-              <p>Ask questions grounded directly on your organization’s uploaded documents and handbooks.</p>
-            </div>
-          ) : (
-            <div className="chat-stream-list">
-              {messages.map((msg) => {
-                const isMatch = Boolean(searchTerm.trim() && msg.text.toLowerCase().includes(searchTerm.toLowerCase()));
-                const activeTargetMsg = searchMatches[activeMatchIndex];
-                const isActiveTarget = isMatch && activeTargetMsg && activeTargetMsg.id === msg.id;
-
-                return (
-                  <div
-                    key={msg.id}
-                    ref={(el) => {
-                      msgRefs.current[msg.id] = el;
-                    }}
-                    className={`chat-message-row ${msg.sender === "user" ? "user-row" : "assistant-row"} ${
-                      isMatch ? "search-match-row" : ""
-                    }`}
-                  >
-                    <div className={`message-avatar ${msg.sender}`}>
-                      {msg.sender === "user" ? <User size={16} /> : <Bot size={18} />}
-                    </div>
-
-                    <div className="message-content-wrapper">
-                      <div className="message-header-meta">
-                        <strong className="sender-name">
-                          {msg.sender === "user" ? "You" : "Atlas AI Assistant"}
-                        </strong>
-                        <span className="timestamp-tag">{msg.timestamp}</span>
-                      </div>
-
-                      <div
-                        className={`message-bubble ${
-                          isActiveTarget ? "search-active-target" : isMatch ? "search-highlight-bubble" : ""
-                        }`}
-                      >
-                        <div className="bubble-text">{msg.text}</div>
-
-                        {/* Assistant Actions (Copy & Feedback) without whole source file content */}
-                        {msg.sender === "assistant" && (
-                          <div className="bubble-actions">
-                            {msg.query_log_id && (
-                              <div className="feedback">
-                                <span>Helpful?</span>
-                                <button
-                                  className={`feedback-btn ${msg.feedbackGiven === true ? "selected" : ""}`}
-                                  onClick={() => handleFeedback(msg.id, msg.query_log_id!, true)}
-                                  aria-label="Helpful"
-                                >
-                                  <ThumbsUp size={13} />
-                                </button>
-                                <button
-                                  className={`feedback-btn ${msg.feedbackGiven === false ? "selected" : ""}`}
-                                  onClick={() => handleFeedback(msg.id, msg.query_log_id!, false)}
-                                  aria-label="Not helpful"
-                                >
-                                  <ThumbsDown size={13} />
-                                </button>
-                              </div>
-                            )}
-
-                            <button
-                              className="btn-copy-bubble"
-                              onClick={() => copyText(msg.id, msg.text)}
-                            >
-                              {copiedId === msg.id ? <Check size={13} /> : <Copy size={13} />}
-                              <span>{copiedId === msg.id ? "Copied" : "Copy"}</span>
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-
-              {loading && (
-                <div className="chat-message-row assistant-row">
-                  <div className="message-avatar assistant">
-                    <Bot size={18} />
-                  </div>
-                  <div className="message-content-wrapper">
-                    <div className="message-bubble thinking-bubble">
-                      <div className="thinking-dots">
-                        <span />
-                        <span />
-                        <span />
-                      </div>
-                      <span>Atlas is retrieving vector chunks & generating answer…</span>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          <div ref={chatEndRef} />
-        </div>
-
-        {/* Error Alert */}
-        {error && <div className="alert-banner error margin-bottom">{error}</div>}
-
-        {/* Sticky Input Bar at Bottom */}
-        <div className="chatbot-input-bar-wrap">
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              handleSend();
-            }}
-            className="chatbot-input-form"
-          >
-            <textarea
-              ref={textareaRef}
-              rows={1}
-              value={inputQuestion}
-              onChange={(e) => setInputQuestion(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  handleSend();
-                }
-              }}
-              placeholder="Ask Atlas AI anything about your enterprise documents..."
-              className="chatbot-sticky-textarea"
-            />
-            <button
-              type="submit"
-              className="chatbot-send-btn"
-              disabled={loading || !inputQuestion.trim()}
-              title="Send question"
-            >
-              <ArrowUp size={18} />
+      {/* Main Split Layout: Past Search Sessions Sidebar + Chatbot Workspace */}
+      <div className="chat-sessions-split-layout">
+        {/* Left Panel: Past Search Sessions Menu */}
+        <aside className="sessions-sidebar-panel">
+          <div className="sessions-panel-header">
+            <button className="new-session-btn" onClick={handleNewChat}>
+              <Plus size={16} />
+              <span>New Search Session</span>
             </button>
-          </form>
+          </div>
 
-          {/* Referenced Source Files Small Section (Just File Names Below Input Field) */}
-          {referencedFileNames.length > 0 && (
-            <div className="referenced-sources-small-bar">
-              <div className="sources-small-header">
-                <FileText size={13} />
-                <span>REFERENCED SOURCE FILES:</span>
-              </div>
-              <div className="sources-small-tags">
-                {referencedFileNames.map((fileName, idx) => (
-                  <span key={`ref-file-${idx}`} className="source-file-pill">
-                    <FileText size={12} className="pill-icon" />
-                    <span className="pill-name">{fileName}</span>
-                  </span>
-                ))}
-              </div>
+          <div className="sessions-list-wrap">
+            <div className="sessions-section-title">
+              <History size={13} />
+              <span>PAST SEARCH SESSIONS ({sessions.length})</span>
             </div>
-          )}
 
-          {/* Dynamic Recommendations Section placed BELOW question input field */}
-          {dynamicQueries.length > 0 && (
-            <div className="dynamic-recommendations-wrapper recommendations-below-input">
-              <div className="recommendations-header">
-                <Compass size={13} />
-                <span>DYNAMIC SUGGESTED QUERIES (FROM YOUR DB)</span>
+            {sessions.length === 0 ? (
+              <div className="empty-sessions-note">
+                <MessageSquare size={24} />
+                <p>No past search sessions yet. Click "+ New Search Session" to begin!</p>
               </div>
-              <div className="recommendations-scroll-row">
-                {dynamicQueries.map((dq) => (
-                  <button
-                    key={dq.id}
-                    className="recommendation-chip-btn"
-                    onClick={() => handleSend(dq.query)}
-                    disabled={loading}
-                  >
-                    <FileText size={13} className="chip-icon" />
-                    <div className="chip-content">
-                      <strong className="chip-title">{dq.title}</strong>
-                      <span className="chip-query-text">{dq.query}</span>
+            ) : (
+              <div className="sessions-items-list">
+                {sessions.map((sess) => {
+                  const isActive = activeSessionId === sess.session_id;
+                  return (
+                    <div
+                      key={sess.session_id}
+                      className={`session-item-card ${isActive ? "active" : ""}`}
+                      onClick={() => handleSelectSession(sess.session_id)}
+                    >
+                      <MessageSquare size={16} className="session-card-icon" />
+                      <div className="session-card-info">
+                        <strong className="session-card-title">{sess.title}</strong>
+                        <div className="session-card-meta">
+                          <span className="session-card-date">{sess.created_at}</span>
+                          <span className="session-card-badge">{sess.message_count} msgs</span>
+                        </div>
+                      </div>
+                      <button
+                        className="session-delete-btn"
+                        onClick={(e) => handleDeleteSession(sess.session_id, e)}
+                        title="Delete session"
+                      >
+                        <Trash2 size={13} />
+                      </button>
                     </div>
-                  </button>
-                ))}
+                  );
+                })}
               </div>
-            </div>
-          )}
+            )}
+          </div>
+        </aside>
+
+        {/* Right Panel: Main Chatbot Container */}
+        <div className="chatbot-spacious-container">
+          {/* Chat Feed Area */}
+          <div className="chat-feed-scroll">
+            {messages.length === 0 ? (
+              <div className="chatbot-welcome-state">
+                <div className="welcome-avatar-glow">
+                  <Bot size={36} />
+                </div>
+                <h2>{activeSessionObj ? activeSessionObj.title : "Start a New Search Session"}</h2>
+                <p>Ask questions grounded directly on your organization’s uploaded documents and handbooks.</p>
+              </div>
+            ) : (
+              <div className="chat-stream-list">
+                {messages.map((msg) => {
+                  const isMatch = Boolean(searchTerm.trim() && msg.text.toLowerCase().includes(searchTerm.toLowerCase()));
+                  const activeTargetMsg = searchMatches[activeMatchIndex];
+                  const isActiveTarget = isMatch && activeTargetMsg && activeTargetMsg.id === msg.id;
+
+                  return (
+                    <div
+                      key={msg.id}
+                      ref={(el) => {
+                        msgRefs.current[msg.id] = el;
+                      }}
+                      className={`chat-message-row ${msg.sender === "user" ? "user-row" : "assistant-row"} ${
+                        isMatch ? "search-match-row" : ""
+                      }`}
+                    >
+                      <div className={`message-avatar ${msg.sender}`}>
+                        {msg.sender === "user" ? <User size={16} /> : <Bot size={18} />}
+                      </div>
+
+                      <div className="message-content-wrapper">
+                        <div className="message-header-meta">
+                          <strong className="sender-name">
+                            {msg.sender === "user" ? "You" : "Atlas AI Assistant"}
+                          </strong>
+                          <span className="timestamp-tag">{msg.timestamp}</span>
+                        </div>
+
+                        <div
+                          className={`message-bubble ${
+                            isActiveTarget ? "search-active-target" : isMatch ? "search-highlight-bubble" : ""
+                          }`}
+                        >
+                          <div className="bubble-text">{msg.text}</div>
+
+                          {/* Assistant Actions (Copy & Feedback) */}
+                          {msg.sender === "assistant" && (
+                            <div className="bubble-actions">
+                              {msg.query_log_id && (
+                                <div className="feedback">
+                                  <span>Helpful?</span>
+                                  <button
+                                    className={`feedback-btn ${msg.feedbackGiven === true ? "selected" : ""}`}
+                                    onClick={() => handleFeedback(msg.id, msg.query_log_id!, true)}
+                                    aria-label="Helpful"
+                                  >
+                                    <ThumbsUp size={13} />
+                                  </button>
+                                  <button
+                                    className={`feedback-btn ${msg.feedbackGiven === false ? "selected" : ""}`}
+                                    onClick={() => handleFeedback(msg.id, msg.query_log_id!, false)}
+                                    aria-label="Not helpful"
+                                  >
+                                    <ThumbsDown size={13} />
+                                  </button>
+                                </div>
+                              )}
+
+                              <button
+                                className="btn-copy-bubble"
+                                onClick={() => copyText(msg.id, msg.text)}
+                              >
+                                {copiedId === msg.id ? <Check size={13} /> : <Copy size={13} />}
+                                <span>{copiedId === msg.id ? "Copied" : "Copy"}</span>
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {loading && (
+                  <div className="chat-message-row assistant-row">
+                    <div className="message-avatar assistant">
+                      <Bot size={18} />
+                    </div>
+                    <div className="message-content-wrapper">
+                      <div className="message-bubble thinking-bubble">
+                        <div className="thinking-dots">
+                          <span />
+                          <span />
+                          <span />
+                        </div>
+                        <span>Atlas is retrieving vector chunks & generating answer…</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div ref={chatEndRef} />
+          </div>
+
+          {/* Error Alert */}
+          {error && <div className="alert-banner error margin-bottom">{error}</div>}
+
+          {/* Sticky Input Bar at Bottom */}
+          <div className="chatbot-input-bar-wrap">
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleSend();
+              }}
+              className="chatbot-input-form"
+            >
+              <textarea
+                ref={textareaRef}
+                rows={1}
+                value={inputQuestion}
+                onChange={(e) => setInputQuestion(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSend();
+                  }
+                }}
+                placeholder="Ask Atlas AI anything about your enterprise documents..."
+                className="chatbot-sticky-textarea"
+              />
+              <button
+                type="submit"
+                className="chatbot-send-btn"
+                disabled={loading || !inputQuestion.trim()}
+                title="Send question"
+              >
+                <ArrowUp size={18} />
+              </button>
+            </form>
+
+            {/* Referenced Source Files Small Section */}
+            {referencedFileNames.length > 0 && (
+              <div className="referenced-sources-small-bar">
+                <div className="sources-small-header">
+                  <FileText size={13} />
+                  <span>REFERENCED SOURCE FILES:</span>
+                </div>
+                <div className="sources-small-tags">
+                  {referencedFileNames.map((fileName, idx) => (
+                    <span key={`ref-file-${idx}`} className="source-file-pill">
+                      <FileText size={12} className="pill-icon" />
+                      <span className="pill-name">{fileName}</span>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Dynamic Recommendations Section */}
+            {dynamicQueries.length > 0 && (
+              <div className="dynamic-recommendations-wrapper recommendations-below-input">
+                <div className="recommendations-header">
+                  <Compass size={13} />
+                  <span>DYNAMIC SUGGESTED QUERIES (FROM YOUR DB)</span>
+                </div>
+                <div className="recommendations-scroll-row">
+                  {dynamicQueries.map((dq) => (
+                    <button
+                      key={dq.id}
+                      className="recommendation-chip-btn"
+                      onClick={() => handleSend(dq.query)}
+                      disabled={loading}
+                    >
+                      <FileText size={13} className="chip-icon" />
+                      <div className="chip-content">
+                        <strong className="chip-title">{dq.title}</strong>
+                        <span className="chip-query-text">{dq.query}</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
   );
 }
-
-
-

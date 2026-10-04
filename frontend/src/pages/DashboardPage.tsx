@@ -18,34 +18,6 @@ export default function DashboardPage({ user, onNavigate }: DashboardPageProps) 
 
   return (
     <div className="dashboard-page">
-      <header className="page-heading">
-        <div>
-          <div className="eyebrow">
-            <Sparkles size={14} /> ENTERPRISE DASHBOARD
-          </div>
-          <h1>Welcome back, {user?.email?.split("@")[0] || "User"}</h1>
-          <p className="subheading">
-            Logged in as <strong className="role-tag-text">{roleName}</strong>. Access your authorized workspace tools below.
-          </p>
-        </div>
-      </header>
-
-      {/* Hero Quick Search Card */}
-      <section className="dash-hero-card">
-        <div className="dash-hero-content">
-          <h2>Grounded Knowledge Search</h2>
-          <p>Ask questions across company policy, technical documents, and employee handbooks with precise citations.</p>
-          <button className="btn-primary-large" onClick={() => onNavigate("/chat")}>
-            <MessageSquare size={18} />
-            <span>Launch AI Search Assistant</span>
-            <ArrowRight size={18} />
-          </button>
-        </div>
-        <div className="dash-hero-badge">
-          <ShieldCheck size={56} />
-        </div>
-      </section>
-
       {/* Authorized Modules Grid */}
       <div className="dash-section-title">
         <h3>Authorized Workspace Modules</h3>
