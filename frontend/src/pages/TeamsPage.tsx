@@ -117,7 +117,7 @@ export default function TeamsPage({ currentUser }: TeamsPageProps) {
     }
   };
 
-  const handleRemoveMember = async (teamId: number, userId: number) => {
+  const handleRemoveMember = async (teamId: number, userId: string | number) => {
     if (!confirm("Are you sure you want to remove this member from the team?")) return;
     try {
       await request(`/api/teams/${teamId}/members/${userId}`, { method: "DELETE" });
