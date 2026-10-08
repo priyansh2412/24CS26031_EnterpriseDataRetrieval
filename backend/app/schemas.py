@@ -1,4 +1,6 @@
 from datetime import datetime
+from typing import Any
+from uuid import UUID
 from pydantic import BaseModel, Field
 from app.models import Role
 
@@ -31,9 +33,9 @@ class SystemSetupInit(BaseModel):
 
 
 class UserOut(BaseModel):
-    id: int
+    id: Any
     email: str
-    role: Role
+    role: Role | str
     role_key: str | None = "employee"
     rank_level: int = 5
     is_active: bool = True
@@ -60,16 +62,16 @@ class ForgotPasswordRequest(BaseModel):
 
 
 class AuditLogOut(BaseModel):
-    id: int
-    user_id: int | None
+    id: Any
+    user_id: Any = None
     user_email: str | None = None
     user_role_key: str | None = None
     user_rank_level: int | None = None
     action: str
     resource_type: str
-    resource_id: str | None
+    resource_id: str | None = None
     severity: str = "INFO"
-    detail: str | None
+    detail: str | None = None
     created_at: datetime
     class Config: from_attributes = True
 
@@ -79,14 +81,19 @@ class AskRequest(BaseModel):
     top_k: int = Field(default=5, ge=1, le=10)
     team_id: int | None = None
     session_id: str | None = None
+    document_id: str | None = None
 
 
 class Citation(BaseModel):
-    document_id: int
+    document_id: str | int
     document_name: str
     chunk_index: int
     text: str
     score: float
+    page_start: int | None = None
+    page_end: int | None = None
+    section_path: str | None = None
+    chunk_id: str | None = None
 
 
 class AskResponse(BaseModel):
@@ -103,14 +110,46 @@ class ChatSessionOut(BaseModel):
     message_count: int
 
 
+# Standalone RAG Schema
+class ChatRequest(BaseModel):
+    question: str = Field(min_length=1, description="The user query to answer using document context")
+    document_id: str | None = Field(default=None, description="Optional document ID filter")
+    top_k: int = Field(default=5, ge=1, le=10)
+
+
+class Source(BaseModel):
+    document_id: str
+    chunk_id: str
+    page_start: int | None = None
+    page_end: int | None = None
+    section_path: str | None = None
+    score: float | None = None
+
+
+class ChatResponse(BaseModel):
+    answer: str
+    sources: list[Source]
+
+
+class IngestionResponse(BaseModel):
+    status: str
+    message: str | None = None
+    document_id: str | None = None
+    chunks: int = 0
+    vectors: int = 0
+
+
 class DocumentOut(BaseModel):
-    id: int
+    id: str
     name: str
     source: str
     status: str
     chunk_count: int
     access_roles: str
-    summary: str | None
+    summary: str | None = None
+    drive_file_id: str | None = None
+    web_view_link: str | None = None
+    acl_version: int = 1
     created_at: datetime
     class Config: from_attributes = True
 
@@ -125,6 +164,26 @@ class DocumentAccessUpdate(BaseModel):
     roles: list[Role] = Field(min_length=1)
 
 
+class SourceCreate(BaseModel):
+    name: str
+    uri: str
+    source_type: str = "google_drive"
+    tenant_id: str | None = None
+    project_id: str | None = None
+
+
+class SourceOut(BaseModel):
+    id: int
+    name: str
+    source_type: str
+    uri: str
+    drive_file_id: str | None
+    folder_id: str | None
+    status: str
+    created_at: datetime
+    class Config: from_attributes = True
+
+
 class TeamCreate(BaseModel):
     name: str = Field(min_length=2, max_length=100)
     project_name: str = Field(min_length=2, max_length=150)
@@ -133,7 +192,7 @@ class TeamCreate(BaseModel):
 
 class TeamMemberOut(BaseModel):
     id: int
-    user_id: int
+    user_id: Any
     user_email: str
     user_role_key: str | None = None
     user_rank_level: int | None = None
@@ -145,15 +204,15 @@ class TeamOut(BaseModel):
     id: int
     name: str
     project_name: str
-    description: str | None
-    created_by_id: int
+    description: str | None = None
+    created_by_id: Any = None
     created_at: datetime
     members: list[TeamMemberOut] = []
     class Config: from_attributes = True
 
 
 class TeamMemberAdd(BaseModel):
-    user_id: int
+    user_id: Any
     role_in_team: str = "member"
 
 
@@ -165,7 +224,7 @@ class TeamChatRequest(BaseModel):
 class TeamChatMessageOut(BaseModel):
     id: int
     team_id: int
-    user_id: int
+    user_id: Any
     user_email: str
     message: str
     response: str
@@ -173,3 +232,26 @@ class TeamChatMessageOut(BaseModel):
     created_at: datetime
     class Config: from_attributes = True
 
+
+class EnterpriseCreate(BaseModel):
+    enterprise_name: str = Field(min_length=2, max_length=150)
+    admin_email: str = Field(min_length=3, max_length=255)
+    temp_password: str | None = Field(default=None, max_length=128)
+    tenant_id: str | None = "tenant-001"
+
+
+class EnterpriseOut(BaseModel):
+    id: int
+    enterprise_name: str
+    admin_email: str
+    temp_password: str
+    user_id: Any = None
+    tenant_id: str
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+    class Config: from_attributes = True
+
+
+class EnterpriseStatusUpdate(BaseModel):
+    is_active: bool
