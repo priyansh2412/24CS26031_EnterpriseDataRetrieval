@@ -1,7 +1,7 @@
 import { Settings, Shield, Server, CheckCircle, Info } from "lucide-react";
 
 interface User {
-  id: number;
+  id: string | number;
   email: string;
   role: string;
 }

@@ -1,7 +1,7 @@
-import { FileText, MessageSquare, ShieldCheck, Users, Sparkles, BarChart3, Activity, ArrowRight } from "lucide-react";
+import { FileText, MessageSquare, ShieldCheck, Users, Sparkles, BarChart3, Activity, ArrowRight, Building2 } from "lucide-react";
 
 interface User {
-  id: number;
+  id: string | number;
   email: string;
   role: string;
 }

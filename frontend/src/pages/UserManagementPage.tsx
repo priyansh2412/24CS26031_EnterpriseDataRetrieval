@@ -84,7 +84,7 @@ export default function UserManagementPage({ currentUser }: UserManagementPagePr
     }
   };
 
-  const handleUpdateRole = async (userId: number, roleKey: string) => {
+  const handleUpdateRole = async (userId: string | number, roleKey: string) => {
     setMessage("");
     setError("");
 
@@ -103,7 +103,7 @@ export default function UserManagementPage({ currentUser }: UserManagementPagePr
     }
   };
 
-  const handleToggleStatus = async (userId: number, currentActive: boolean) => {
+  const handleToggleStatus = async (userId: string | number, currentActive: boolean) => {
     setMessage("");
     setError("");
     try {

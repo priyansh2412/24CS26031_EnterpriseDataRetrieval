@@ -13,6 +13,7 @@ import {
   Sun,
   Moon,
   FolderKanban,
+  Building2,
 } from "lucide-react";
 import ChatPage from "./pages/ChatPage";
 import DocumentsPage from "./pages/DocumentsPage";
@@ -24,6 +25,7 @@ import AuditLogsPage from "./pages/AuditLogsPage";
 import SettingsPage from "./pages/SettingsPage";
 import SetupWizardPage from "./pages/SetupWizardPage";
 import TeamsPage from "./pages/TeamsPage";
+import SystemEnterprisePortal from "./pages/SystemEnterprisePortal";
 import { SetupStatus, UserProfile, request, token } from "./api";
 
 type NavRoute = {
@@ -108,6 +110,11 @@ export default function App() {
     window.history.pushState({}, "", path);
     setCurrentPath(path);
   };
+
+  // Direct standalone route for /enterprises System Portal
+  if (currentPath === "/enterprises" || window.location.pathname === "/enterprises") {
+    return <SystemEnterprisePortal theme={theme} onToggleTheme={toggleTheme} />;
+  }
 
   // Render Setup Wizard if system onboarding setup is required
   if (setupInitialized === false) {
