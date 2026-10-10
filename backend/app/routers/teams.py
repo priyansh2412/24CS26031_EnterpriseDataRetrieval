@@ -41,20 +41,22 @@ def _user_in_team(db: Session, team_id: int, user_id: Any) -> bool:
 
 @router.get("", response_model=list[TeamOut])
 def list_teams(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    eff_tenant = str(current_user.tenant_id or settings.default_tenant_id)
-    curr_role = current_user.role.value if hasattr(current_user.role, "value") else str(current_user.role or "employee")
+    user_tenant = str(current_user.tenant_id) if current_user.tenant_id else None
 
     query = db.query(Team)
     if not _is_system_admin(current_user):
-        query = query.filter(Team.tenant_id == eff_tenant)
+        # 1. Enforce same enterprise
+        if user_tenant:
+            query = query.filter(Team.tenant_id == user_tenant)
+        else:
+            query = query.filter((Team.tenant_id.is_(None)) | (Team.tenant_id == settings.default_tenant_id))
 
-    # Admins or top-rank users see all teams in enterprise; regular users see teams they belong to
-    if current_user.rank_level <= 2 or curr_role == "admin" or _is_system_admin(current_user):
-        teams = query.order_by(Team.created_at.desc()).all()
-    else:
+        # 2. Enforce same team membership: Only active members of the team can view it
         member_team_ids = db.query(TeamMember.team_id).filter(TeamMember.user_id == current_user.id).all()
-        ids = [t[0] for t in member_team_ids]
-        teams = query.filter(Team.id.in_(ids)).order_by(Team.created_at.desc()).all()
+        ids = {t[0] for t in member_team_ids}
+        query = query.filter(Team.id.in_(list(ids)))
+
+    teams = query.order_by(Team.created_at.desc()).all()
 
     out = []
     for team in teams:
@@ -135,6 +137,15 @@ def add_team_member(team_id: int, payload: TeamMemberAdd, db: Session = Depends(
     if not team:
         raise HTTPException(status_code=404, detail="Team not found")
 
+    user_tenant = str(current_user.tenant_id) if current_user.tenant_id else None
+    if not _is_system_admin(current_user):
+        # 1. Enforce same enterprise
+        if user_tenant and team.tenant_id and team.tenant_id != user_tenant:
+            raise HTTPException(status_code=403, detail="Access denied: team belongs to another enterprise")
+        # 2. Must be a member of this team to add colleagues
+        if not _user_in_team(db, team_id, current_user.id) and team.created_by_id != current_user.id:
+            raise HTTPException(status_code=403, detail="Access denied: only members of this team can add colleagues")
+
     try:
         uid = uuid.UUID(str(payload.user_id))
         target_user = db.query(User).filter(User.id == uid).first()
@@ -143,6 +154,11 @@ def add_team_member(team_id: int, payload: TeamMemberAdd, db: Session = Depends(
 
     if not target_user:
         raise HTTPException(status_code=404, detail="User to add not found")
+
+    # 3. Target user MUST belong to the SAME enterprise!
+    target_tenant = str(target_user.tenant_id) if target_user.tenant_id else None
+    if user_tenant and target_tenant and target_tenant != user_tenant:
+        raise HTTPException(status_code=400, detail="Cannot add a user from a different enterprise to this team")
 
     existing = db.query(TeamMember).filter(TeamMember.team_id == team_id, TeamMember.user_id == target_user.id).first()
     if existing:
@@ -190,6 +206,13 @@ def remove_team_member(team_id: int, user_id: str, db: Session = Depends(get_db)
     if not team:
         raise HTTPException(status_code=404, detail="Team not found")
 
+    user_tenant = str(current_user.tenant_id) if current_user.tenant_id else None
+    if not _is_system_admin(current_user):
+        if user_tenant and team.tenant_id and team.tenant_id != user_tenant:
+            raise HTTPException(status_code=403, detail="Access denied: team belongs to another enterprise")
+        if not _user_in_team(db, team_id, current_user.id) and team.created_by_id != current_user.id:
+            raise HTTPException(status_code=403, detail="Access denied: only members of this team can manage membership")
+
     try:
         uid = uuid.UUID(user_id)
         member = db.query(TeamMember).filter(TeamMember.team_id == team_id, TeamMember.user_id == uid).first()
@@ -219,9 +242,14 @@ def get_team_chat_history(team_id: int, db: Session = Depends(get_db), current_u
     if not team:
         raise HTTPException(status_code=404, detail="Team not found")
 
-    # Check permission
-    if not _user_in_team(db, team_id, current_user.id) and current_user.rank_level > 2 and current_user.role != "admin" and not _is_system_admin(current_user):
-        raise HTTPException(status_code=403, detail="Access denied to team chat history")
+    user_tenant = str(current_user.tenant_id) if current_user.tenant_id else None
+    if not _is_system_admin(current_user):
+        # 1. Enforce same enterprise
+        if user_tenant and team.tenant_id and team.tenant_id != user_tenant:
+            raise HTTPException(status_code=403, detail="Access denied: team belongs to another enterprise")
+        # 2. Enforce same team membership
+        if not _user_in_team(db, team_id, current_user.id) and team.created_by_id != current_user.id:
+            raise HTTPException(status_code=403, detail="Access denied: you are not a member of this team")
 
     messages = db.query(TeamChatMessage).filter(TeamChatMessage.team_id == team_id).order_by(TeamChatMessage.created_at.asc()).limit(100).all()
     out = []
@@ -254,8 +282,14 @@ def send_team_chat_message(team_id: int, payload: dict, db: Session = Depends(ge
     if not team:
         raise HTTPException(status_code=404, detail="Team not found")
 
-    if not _user_in_team(db, team_id, current_user.id) and current_user.rank_level > 2 and current_user.role != "admin" and not _is_system_admin(current_user):
-        raise HTTPException(status_code=403, detail="Not a member of this team")
+    user_tenant = str(current_user.tenant_id) if current_user.tenant_id else None
+    if not _is_system_admin(current_user):
+        # 1. Enforce same enterprise
+        if user_tenant and team.tenant_id and team.tenant_id != user_tenant:
+            raise HTTPException(status_code=403, detail="Access denied: team belongs to another enterprise")
+        # 2. Enforce same team membership
+        if not _user_in_team(db, team_id, current_user.id) and team.created_by_id != current_user.id:
+            raise HTTPException(status_code=403, detail="Access denied: you are not a member of this team")
 
     eff_tenant = str(team.tenant_id or current_user.tenant_id or settings.default_tenant_id)
 
