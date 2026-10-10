@@ -25,6 +25,7 @@ from app.routers import (
     auth,
     chat,
     documents,
+    drive_links,
     enterprises,
     feedback,
     ingestion,
@@ -147,6 +148,7 @@ app.add_middleware(
 app.include_router(setup.router)
 app.include_router(auth.router)
 app.include_router(documents.router)
+app.include_router(drive_links.router)
 app.include_router(ingestion.router)
 app.include_router(sources.router)
 app.include_router(chat.router)
@@ -214,17 +216,12 @@ def health():
     }
 
 
-# Static UI mount
-if STATIC_DIR.exists():
-    app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
-
-
 @app.get("/")
 def index():
-    index_file = STATIC_DIR / "index.html"
-    if index_file.exists():
-        return FileResponse(str(index_file))
     return {
-        "message": "Enterprise Data Retrieval API is running.",
-        "docs": "/docs"
+        "status": "online",
+        "service": "Enterprise Data Retrieval & RAG Backend API",
+        "version": "1.0.0",
+        "docs": "/docs",
+        "health": "/health"
     }

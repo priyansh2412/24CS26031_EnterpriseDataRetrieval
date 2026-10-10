@@ -525,6 +525,13 @@ button:disabled {
   z-index: 1;
 }
 
+.login-card-wrapper.single-panel {
+  width: min(480px, 100%);
+  display: flex;
+  flex-direction: column;
+  margin: 0 auto;
+}
+
 .login-brand-panel {
   background: linear-gradient(135deg, rgba(248, 250, 252, 0.95) 0%, rgba(239, 246, 255, 0.85) 100%);
   border-right: 1px solid #e2e8f0;

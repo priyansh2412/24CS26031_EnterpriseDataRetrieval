@@ -35,15 +35,38 @@ class SystemSetupInit(BaseModel):
 class UserOut(BaseModel):
     id: Any
     email: str
+    display_name: str | None = None
     role: Role | str
     role_key: str | None = "employee"
     rank_level: int = 5
     is_active: bool = True
+    tenant_id: Any = None
+    created_at: datetime | None = None
     class Config: from_attributes = True
+
+
+class UserProfileOut(BaseModel):
+    id: Any
+    email: str
+    display_name: str | None = None
+    role: Role | str
+    role_key: str | None = "employee"
+    rank_level: int = 5
+    is_active: bool = True
+    tenant_id: Any = None
+    enterprise_name: str | None = None
+    created_at: datetime | None = None
+    class Config: from_attributes = True
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str = Field(min_length=1, max_length=128)
+    new_password: str = Field(min_length=6, max_length=128)
 
 
 class UserCreate(BaseModel):
     email: str = Field(min_length=3, max_length=255)
+    display_name: str | None = None
     password: str = Field(min_length=8, max_length=128)
     role: Role = Role.EMPLOYEE
     role_key: str | None = "employee"
@@ -51,6 +74,7 @@ class UserCreate(BaseModel):
 
 
 class UserUpdate(BaseModel):
+    display_name: str | None = None
     role: Role | None = None
     role_key: str | None = None
     rank_level: int | None = None
@@ -146,6 +170,9 @@ class DocumentOut(BaseModel):
     status: str
     chunk_count: int
     access_roles: str
+    denied_users: str | None = "[]"
+    folder_path: str | None = "/"
+    drive_link_id: int | None = None
     summary: str | None = None
     drive_file_id: str | None = None
     web_view_link: str | None = None
@@ -161,7 +188,36 @@ class FeedbackIn(BaseModel):
 
 
 class DocumentAccessUpdate(BaseModel):
-    roles: list[Role] = Field(min_length=1)
+    roles: list[str] = Field(min_length=1)
+    denied_users: list[str] = Field(default=[])
+    apply_to_folder: bool = False
+
+
+class EnterpriseDriveLinkCreate(BaseModel):
+    name: str | None = None
+    drive_url: str = Field(min_length=5)
+    password: str | None = None
+    folder_path: str | None = "/"
+
+
+class EnterpriseDriveLinkUpdatePassword(BaseModel):
+    current_password: str | None = None
+    new_password: str = Field(min_length=4)
+
+
+class EnterpriseDriveLinkOut(BaseModel):
+    id: int
+    tenant_id: str
+    name: str
+    drive_url: str
+    drive_id: str | None = None
+    is_folder: bool = True
+    is_password_protected: bool = False
+    status: str = "active"
+    doc_count: int = 0
+    created_at: datetime
+    updated_at: datetime
+    class Config: from_attributes = True
 
 
 class SourceCreate(BaseModel):

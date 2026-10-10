@@ -24,7 +24,7 @@ def retrieve_authorized_chunks(
     6. Returns ranked, authorized chunks.
     """
     limit = top_k or settings.top_k
-    eff_tenant = tenant_id or (user.tenant_id if hasattr(user, "tenant_id") and user.tenant_id else settings.default_tenant_id)
+    eff_tenant = str(tenant_id or (user.tenant_id if user and getattr(user, "tenant_id", None) else settings.default_tenant_id))
 
     # 1. Resolve user principal keys
     principal_keys = None
@@ -49,13 +49,13 @@ def retrieve_authorized_chunks(
 
     chunk_ids = [str(pt.id) for pt in points]
 
-    # 4. Fetch complete chunk records from PostgreSQL
-    db_chunks = db.query(Chunk).filter(Chunk.id.in_(chunk_ids)).all()
+    # 4. Fetch complete chunk records from PostgreSQL strictly scoped to eff_tenant
+    db_chunks = db.query(Chunk).filter(Chunk.id.in_(chunk_ids), Chunk.tenant_id == eff_tenant).all()
     chunk_map = {str(c.id): c for c in db_chunks}
 
-    # Fetch referenced documents for metadata & ACL verification
+    # Fetch referenced documents for metadata & ACL verification strictly scoped to eff_tenant
     doc_ids = {c.document_id for c in db_chunks}
-    docs = db.query(Document).filter(Document.id.in_(doc_ids)).all()
+    docs = db.query(Document).filter(Document.id.in_(doc_ids), Document.tenant_id == eff_tenant).all()
     doc_map = {str(d.id): d for d in docs}
 
     results = []

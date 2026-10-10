@@ -71,6 +71,77 @@ def get_drive_service():
     return None
 
 
+def fetch_drive_folder_details(folder_id_or_url: str) -> dict[str, Any]:
+    """
+    Fetches the folder display name and all accessible child items (files and nested folders).
+    Works via Google Drive API if configured, with automatic fallback to public web scraping.
+    Returns:
+    {
+        "id": folder_id,
+        "name": "Folder Name",
+        "items": [{"id": file_id, "name": "File.pdf", "mime_type": "...", "size_bytes": 123}]
+    }
+    """
+    folder_id, kind = extract_drive_file_id(folder_id_or_url)
+    service = get_drive_service()
+
+    if service and kind == "folder":
+        try:
+            folder_obj = service.files().get(fileId=folder_id, fields="id, name").execute()
+            folder_name = folder_obj.get("name", "Google Drive Folder")
+            results = service.files().list(
+                q=f"'{folder_id}' in parents and trashed = false",
+                fields="files(id, name, mimeType, size)",
+                pageSize=100
+            ).execute()
+            items = []
+            for f in results.get("files", []):
+                items.append({
+                    "id": f.get("id"),
+                    "name": f.get("name"),
+                    "mime_type": f.get("mimeType", "application/pdf"),
+                    "size_bytes": int(f.get("size", 0)) if f.get("size") else 0,
+                    "is_folder": f.get("mimeType") == "application/vnd.google-apps.folder"
+                })
+            return {"id": folder_id, "name": folder_name, "items": items}
+        except Exception as e:
+            print(f"Service folder fetch failed: {e}. Falling back to web inspection...")
+
+    # Public web fetch fallback
+    try:
+        url = f"https://drive.google.com/drive/folders/{folder_id}" if kind == "folder" else f"https://drive.google.com/file/d/{folder_id}/view"
+        resp = requests.get(url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}, timeout=15)
+        text = resp.text
+        title_m = re.search(r"<title>(.*?)</title>", text)
+        folder_name = "Google Drive Folder"
+        if title_m:
+            raw = title_m.group(1)
+            parts = re.split(r"\s+[-–—\ufffd]\s+Google Drive", raw)
+            folder_name = parts[0].strip() or "Google Drive Folder"
+
+        items = []
+        seen = set()
+        matches = re.findall(r'class="JxSEve"[^>]*aria-label="([^"]+)"[^>]*ssk=\'([^\']+)\'', text)
+        for label, ssk in matches:
+            m = re.search(r':([a-zA-Z0-9_-]{20,45})-0-16', ssk)
+            if m:
+                item_id = m.group(1)
+                clean_name = re.sub(r"\s+(PDF|Google Docs|Google Sheets|Shared).*$", "", label).strip()
+                if item_id not in seen:
+                    seen.add(item_id)
+                    items.append({
+                        "id": item_id,
+                        "name": clean_name,
+                        "mime_type": "application/pdf",
+                        "size_bytes": 0,
+                        "is_folder": False
+                    })
+        return {"id": folder_id, "name": folder_name, "items": items}
+    except Exception as e:
+        print(f"Web folder inspection failed: {e}")
+        return {"id": folder_id, "name": f"Drive Folder ({folder_id[:8]})", "items": []}
+
+
 def fetch_drive_metadata(file_id: str) -> dict[str, Any]:
     """
     Fetches file metadata:
@@ -104,10 +175,24 @@ def fetch_drive_metadata(file_id: str) -> dict[str, Any]:
         except Exception as e:
             print(f"Google Drive API get metadata failed for {file_id}: {e}")
 
-    # Fallback default metadata when API credentials not provided or public
+    # Fallback: Extract file name from Google Drive public page title if possible
+    fetched_name = f"Google_Drive_Doc_{file_id[:8]}.pdf"
+    try:
+        url = f"https://drive.google.com/file/d/{file_id}/view"
+        resp = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
+        title_m = re.search(r"<title>(.*?)</title>", resp.text)
+        if title_m:
+            raw = title_m.group(1)
+            parts = re.split(r"\s+[-–—\ufffd]\s+Google Drive", raw)
+            name_cand = parts[0].strip()
+            if name_cand and name_cand != "Google Drive":
+                fetched_name = name_cand
+    except Exception:
+        pass
+
     return {
         "drive_file_id": file_id,
-        "name": f"Google_Drive_Doc_{file_id[:8]}.pdf",
+        "name": fetched_name,
         "mime_type": "application/pdf",
         "modified_time": datetime.utcnow(),
         "size_bytes": 1024,
@@ -141,17 +226,14 @@ def download_drive_file(
         try:
             mime = meta.get("mime_type", "")
             if mime == "application/vnd.google-apps.document":
-                # Export Google Doc as PDF
                 content = service.files().export(fileId=file_id, mimeType="application/pdf").execute()
                 target_path = target_path.with_suffix(".pdf")
                 target_path.write_bytes(content)
             elif mime == "application/vnd.google-apps.spreadsheet":
-                # Export Google Sheet as PDF
                 content = service.files().export(fileId=file_id, mimeType="application/pdf").execute()
                 target_path = target_path.with_suffix(".pdf")
                 target_path.write_bytes(content)
             else:
-                # Binary file download
                 content = service.files().get_media(fileId=file_id).execute()
                 target_path.write_bytes(content)
 
@@ -162,8 +244,18 @@ def download_drive_file(
 
     # Direct HTTP download / export for publicly accessible / link-shared Drive documents
     try:
+        uc_url = f"https://drive.google.com/uc?export=download&id={file_id}"
+        resp = requests.get(uc_url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}, timeout=30)
+        if resp.status_code == 200 and len(resp.content) > 500:
+            target_path.write_bytes(resp.content)
+            meta["size_bytes"] = len(resp.content)
+            return target_path, meta
+    except Exception as e:
+        print(f"uc download error: {e}")
+
+    try:
         export_url = f"https://docs.google.com/document/d/{file_id}/export?format=pdf"
-        resp = requests.get(export_url, timeout=30)
+        resp = requests.get(export_url, headers={"User-Agent": "Mozilla/5.0"}, timeout=30)
         if resp.status_code == 200 and len(resp.content) > 500:
             target_path = target_path.with_suffix(".pdf")
             target_path.write_bytes(resp.content)
@@ -172,18 +264,8 @@ def download_drive_file(
     except Exception:
         pass
 
-    try:
-        uc_url = f"https://drive.google.com/uc?export=download&id={file_id}"
-        resp = requests.get(uc_url, timeout=30)
-        if resp.status_code == 200 and len(resp.content) > 500:
-            target_path.write_bytes(resp.content)
-            meta["size_bytes"] = len(resp.content)
-            return target_path, meta
-    except Exception:
-        pass
-
-    # If file exists in local data folder or incoming folder with similar name, link it
-    for existing_file in destination_dir.parent.glob("**/*"):
+    # If file exists in local incoming folder with similar name, link it
+    for existing_file in destination_dir.glob("*"):
         if existing_file.is_file() and file_id in existing_file.name:
             return existing_file, meta
 
@@ -202,12 +284,6 @@ def extract_drive_principal_keys(
 ) -> list[str]:
     """
     Maps Google Drive permissions (users, groups, domain) to internal principal keys.
-    e.g.:
-    u:user-001 / u:admin@company.com
-    g:group-hr
-    p:project-001
-    r:employee
-    t:tenant-001
     """
     eff_tenant = tenant_id or settings.default_tenant_id
     eff_project = project_id or settings.default_project_id
@@ -251,4 +327,3 @@ def extract_drive_principal_keys(
     keys.add("r:manager")
 
     return sorted(list(keys))
-

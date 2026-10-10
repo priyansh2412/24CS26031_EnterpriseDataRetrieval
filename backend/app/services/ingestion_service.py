@@ -46,6 +46,8 @@ def ingest_document_file(
     source_type: str = "local",
     drive_metadata: dict[str, Any] | None = None,
     custom_principal_keys: list[str] | None = None,
+    folder_path: str | None = None,
+    drive_link_id: int | None = None,
 ) -> dict[str, Any]:
     """
     Ingests a document file into PostgreSQL and Qdrant.
@@ -63,6 +65,7 @@ def ingest_document_file(
 
     eff_tenant = tenant_id or settings.default_tenant_id
     eff_project = project_id or settings.default_project_id
+    ensure_collection(eff_tenant)
     checksum = calculate_file_hash(p)
 
     meta = drive_metadata or {}
@@ -70,13 +73,16 @@ def ingest_document_file(
     source_uri = meta.get("web_view_link") or str(p.resolve())
     doc_name = meta.get("name") or p.name
 
-    # Check if document already exists
+    # Check if document already exists for this tenant
     existing_doc = (
         db.query(Document)
         .filter(
-            (Document.checksum == checksum) |
-            (Document.source_uri == source_uri) |
-            ((Document.drive_file_id == drive_id) if drive_id else False)
+            (Document.tenant_id == eff_tenant) &
+            (
+                (Document.checksum == checksum) |
+                (Document.source_uri == source_uri) |
+                ((Document.drive_file_id == drive_id) if drive_id else False)
+            )
         )
         .first()
     )
@@ -124,6 +130,8 @@ def ingest_document_file(
             source=source_type,
             source_uri=source_uri,
             drive_file_id=drive_id,
+            folder_path=folder_path or "/",
+            drive_link_id=drive_link_id,
             mime_type=meta.get("mime_type") or "application/pdf",
             size_bytes=meta.get("size_bytes") or p.stat().st_size,
             owner_email=meta.get("owner_email"),
@@ -144,6 +152,10 @@ def ingest_document_file(
         doc.source_hash = checksum
         doc.status = "processing"
         doc.updated_at = datetime.utcnow()
+        if folder_path:
+            doc.folder_path = folder_path
+        if drive_link_id:
+            doc.drive_link_id = drive_link_id
         if drive_id:
             doc.drive_file_id = drive_id
             doc.web_view_link = meta.get("web_view_link")
@@ -151,7 +163,7 @@ def ingest_document_file(
 
         # Clean old chunks before re-indexing new version
         db.query(Chunk).filter(Chunk.document_id == doc_id).delete()
-        delete_document_chunks(doc_id)
+        delete_document_chunks(doc_id, tenant_id=eff_tenant)
 
     db.commit()
 
@@ -246,6 +258,7 @@ def ingest_document_file(
             point_id=chunk_id,
             vector=embedding,
             payload=payload,
+            tenant_id=eff_tenant
         )
         vector_count += 1
 
@@ -271,39 +284,76 @@ def ingest_from_drive_link(
     tenant_id: str | None = None,
     project_id: str | None = None,
     custom_principal_keys: list[str] | None = None,
+    folder_path: str | None = None,
+    drive_link_id: int | None = None,
 ) -> dict[str, Any]:
     """
     Admin adds a Google Drive file/folder link:
     - Extracts drive_file_id.
-    - Registers source in PostgreSQL sources table.
-    - Fetches metadata via Google Drive API.
-    - Downloads/reads document.
-    - Ingests document into PostgreSQL + Qdrant.
+    - If folder: retrieves all contained files and ingests each one individually.
+    - If single file: downloads and ingests the file.
     """
+    from app.services.google_drive_service import fetch_drive_folder_details
     file_id, kind = extract_drive_file_id(drive_link_or_id)
     eff_tenant = tenant_id or settings.default_tenant_id
     eff_project = project_id or settings.default_project_id
-
-    # 1. Register or update source in PostgreSQL
-    source = db.query(Source).filter(Source.uri == drive_link_or_id).first()
-    if not source:
-        source = Source(
-            name=f"Google Drive {kind.capitalize()} ({file_id[:8]})",
-            source_type="google_drive",
-            uri=drive_link_or_id,
-            drive_file_id=file_id,
-            folder_id=file_id if kind == "folder" else None,
-            status="active",
-            created_at=datetime.utcnow(),
-        )
-        db.add(source)
-        db.commit()
-
-    # 2. Fetch metadata & download file
     incoming_dir = settings.incoming_path
-    target_path, meta = download_drive_file(file_id, incoming_dir)
 
-    # 3. Ingest document
+    if kind == "folder":
+        folder_details = fetch_drive_folder_details(drive_link_or_id)
+        folder_title = folder_details.get("name") or "Google Drive Folder"
+        items = folder_details.get("items") or []
+        effective_folder_path = folder_path or f"/{folder_title}"
+        if not effective_folder_path.startswith("/"):
+            effective_folder_path = f"/{effective_folder_path}"
+
+        total_ingested = 0
+        total_chunks = 0
+        total_vectors = 0
+        results = []
+
+        for item in items:
+            item_id = item.get("id")
+            if not item_id:
+                continue
+            try:
+                target_path, meta = download_drive_file(item_id, incoming_dir, metadata={
+                    "drive_file_id": item_id,
+                    "name": item.get("name"),
+                    "mime_type": item.get("mime_type", "application/pdf"),
+                    "web_view_link": f"https://drive.google.com/file/d/{item_id}/view"
+                })
+                res = ingest_document_file(
+                    file_path=target_path,
+                    db=db,
+                    tenant_id=eff_tenant,
+                    project_id=eff_project,
+                    source_type="google_drive",
+                    drive_metadata=meta,
+                    custom_principal_keys=custom_principal_keys,
+                    folder_path=effective_folder_path,
+                    drive_link_id=drive_link_id,
+                )
+                total_ingested += 1
+                total_chunks += res.get("chunks", 0)
+                total_vectors += res.get("vectors", 0)
+                results.append(res)
+            except Exception as e:
+                db.rollback()
+                print(f"Error ingesting item {item.get('name')}: {e}")
+
+        return {
+            "status": "success",
+            "message": f"Successfully ingested folder '{folder_title}' with {total_ingested} files ({total_chunks} chunks, {total_vectors} vectors).",
+            "folder_name": folder_title,
+            "count": total_ingested,
+            "chunks": total_chunks,
+            "vectors": total_vectors,
+            "results": results,
+        }
+
+    # Single File
+    target_path, meta = download_drive_file(file_id, incoming_dir)
     return ingest_document_file(
         file_path=target_path,
         db=db,
@@ -312,20 +362,24 @@ def ingest_from_drive_link(
         source_type="google_drive",
         drive_metadata=meta,
         custom_principal_keys=custom_principal_keys,
+        folder_path=folder_path,
+        drive_link_id=drive_link_id,
     )
 
 
-def ingest_directory_files(directory: Path | str, db: Session) -> list[dict[str, Any]]:
-    """Ingests all valid documents in local directory."""
+def ingest_directory_files(directory: Path | str, db: Session, tenant_id: str | None = None) -> list[dict[str, Any]]:
+    """Ingests all valid documents in local directory for the specified tenant."""
     dir_path = Path(directory)
     dir_path.mkdir(parents=True, exist_ok=True)
     results = []
     supported_exts = {".pdf", ".docx", ".pptx", ".txt", ".md", ".csv"}
 
+    eff_tenant = tenant_id or settings.default_tenant_id
+
     for f in dir_path.rglob("*"):
         if f.is_file() and f.suffix.lower() in supported_exts:
             try:
-                res = ingest_document_file(f, db, source_type="local")
+                res = ingest_document_file(f, db, tenant_id=eff_tenant, source_type="local")
                 results.append(res)
             except Exception as e:
                 print(f"Error ingesting file {f.name}: {e}")
@@ -337,11 +391,8 @@ def ingest_directory_files(directory: Path | str, db: Session) -> list[dict[str,
 def auto_ingest_all_sources(db: Session):
     """
     Automated startup ingestion:
-    Checks for configured Google Drive link in .env or local data folder and ingests all documents.
+    Documents are strictly ingested through Google Drive links.
     """
-    print("Checking for automated document ingestion...")
-
-    # 1. Ingest configured Google Drive Link if provided
     drive_link = (
         settings.documents_drive_link
         or settings.google_drive_folder_url
@@ -351,13 +402,6 @@ def auto_ingest_all_sources(db: Session):
         try:
             print(f"Automating ingestion from Google Drive link: {drive_link}")
             res = ingest_from_drive_link(drive_link, db)
-            print(f"Drive ingestion result: {res}")
+            print(f"Drive ingestion result: {res.get('status')}")
         except Exception as e:
             print(f"Auto drive ingestion error: {e}")
-
-    # 2. Ingest local data directory documents
-    try:
-        local_res = ingest_directory_files(settings.data_path, db)
-        print(f"Local files auto-ingestion completed: {len(local_res)} files processed.")
-    except Exception as e:
-        print(f"Auto local ingestion error: {e}")

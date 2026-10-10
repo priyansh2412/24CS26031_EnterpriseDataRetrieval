@@ -20,13 +20,24 @@ from app.services.qdrant_service import delete_document_chunks
 router = APIRouter(prefix="/api/documents", tags=["documents"])
 
 
+def _is_system_admin(user: User) -> bool:
+    role_val = user.role.value if hasattr(user.role, "value") else str(user.role or "employee")
+    return user.email == "system@gmailexample.com" or (role_val == "admin" and getattr(user, "rank_level", 5) == 0)
+
+
 @router.get("", response_model=list[DocumentOut])
 def list_documents(
     search: str | None = None,
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("documents:view")),
 ):
+    eff_tenant = str(user.tenant_id or settings.default_tenant_id)
     query = db.query(Document)
+
+    # Scoped multi-tenant isolation (unless system super admin)
+    if not _is_system_admin(user):
+        query = query.filter(Document.tenant_id == eff_tenant)
+
     if search:
         query = query.filter(Document.name.ilike(f"%{search}%"))
 
@@ -44,12 +55,13 @@ def ingest_local(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("documents:manage")),
 ):
-    results = ingest_directory_files(settings.data_path, db)
-    log_access(db, user, "ingest", "document_library", detail=f"{len(results)} local files processed")
+    eff_tenant = str(user.tenant_id or settings.default_tenant_id)
+    results = ingest_directory_files(settings.data_path, db, tenant_id=eff_tenant)
+    log_access(db, user, "ingest", "document_library", detail=f"{len(results)} local files processed for tenant {eff_tenant}")
     db.commit()
 
-    # Return refreshed list of documents
-    return db.query(Document).order_by(Document.created_at.desc()).all()
+    # Return refreshed list of documents for this tenant
+    return db.query(Document).filter(Document.tenant_id == eff_tenant).order_by(Document.created_at.desc()).all()
 
 
 @router.post("/{document_id}/reingest", response_model=DocumentOut)
@@ -58,7 +70,12 @@ def reingest(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("documents:manage")),
 ):
-    document = db.query(Document).filter(Document.id == document_id).first()
+    eff_tenant = str(user.tenant_id or settings.default_tenant_id)
+    query = db.query(Document).filter(Document.id == document_id)
+    if not _is_system_admin(user):
+        query = query.filter(Document.tenant_id == eff_tenant)
+
+    document = query.first()
     if not document:
         raise HTTPException(404, "Document not found")
 
@@ -71,7 +88,7 @@ def reingest(
         else:
             raise HTTPException(404, f"Local source file for '{document.name}' not found.")
 
-    res = ingest_document_file(file_path, db, source_type=document.source)
+    res = ingest_document_file(file_path, db, tenant_id=document.tenant_id, source_type=document.source)
     log_access(db, user, "reingest", "document", str(document_id))
     db.commit()
 
@@ -85,7 +102,12 @@ def summarize(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("documents:view")),
 ):
-    document = db.query(Document).filter(Document.id == document_id).first()
+    eff_tenant = str(user.tenant_id or settings.default_tenant_id)
+    query = db.query(Document).filter(Document.id == document_id)
+    if not _is_system_admin(user):
+        query = query.filter(Document.tenant_id == eff_tenant)
+
+    document = query.first()
     if not document or not verify_document_access(db, user, document.id):
         raise HTTPException(404, "Document not found")
 
@@ -105,14 +127,32 @@ def remove(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("documents:manage")),
 ):
-    document = db.query(Document).filter(Document.id == document_id).first()
+    eff_tenant = str(user.tenant_id or settings.default_tenant_id)
+    query = db.query(Document).filter(Document.id == document_id)
+    if not _is_system_admin(user):
+        query = query.filter(Document.tenant_id == eff_tenant)
+
+    document = query.first()
     if not document:
         raise HTTPException(404, "Document not found")
 
-    delete_document_chunks(document.id)
+    delete_document_chunks(document.id, tenant_id=document.tenant_id)
     db.delete(document)
     log_access(db, user, "delete", "document", str(document_id))
     db.commit()
+
+
+@router.get("/folders")
+def list_folders(
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("documents:view")),
+):
+    eff_tenant = str(user.tenant_id or settings.default_tenant_id)
+    query = db.query(Document.folder_path).filter(Document.tenant_id == eff_tenant).distinct()
+    paths = [p[0] or "/" for p in query.all()]
+    if "/" not in paths:
+        paths.insert(0, "/")
+    return sorted(list(set(paths)))
 
 
 @router.put("/{document_id}/access", response_model=DocumentOut)
@@ -122,22 +162,54 @@ def update_access(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("documents:access")),
 ):
-    document = db.query(Document).filter(Document.id == document_id).first()
+    eff_tenant = str(user.tenant_id or settings.default_tenant_id)
+    query = db.query(Document).filter(Document.id == document_id)
+    if not _is_system_admin(user):
+        query = query.filter(Document.tenant_id == eff_tenant)
+
+    document = query.first()
     if not document:
         raise HTTPException(404, "Document not found")
 
-    # Update access roles JSON
-    role_strings = [r.value for r in payload.roles]
-    document.access_roles = "[" + ", ".join(f'"{r}"' for r in role_strings) + "]"
+    import json
+    role_strings = [str(r).strip().lower() for r in payload.roles]
+    denied_strings = [str(d).strip().lower() for d in payload.denied_users]
 
-    # Sync principal keys and update Qdrant payload via ACL Outbox
-    pkeys = [f"r:{r}" for r in role_strings] + [
-        f"t:{document.tenant_id or settings.default_tenant_id}",
+    document.access_roles = json.dumps(role_strings)
+    document.denied_users = json.dumps(denied_strings)
+
+    allowed_pkeys = [f"r:{r}" for r in role_strings] + [
+        f"t:{document.tenant_id or eff_tenant}",
         "r:admin",
     ]
-    sync_document_acl_entries(db, document.id, pkeys, origin="manual")
+    denied_pkeys = [f"u:{du}" for du in denied_strings]
 
-    log_access(db, user, "update_access", "document", str(document_id), document.access_roles)
+    sync_document_acl_entries(
+        db=db,
+        document_id=document.id,
+        principal_keys=allowed_pkeys,
+        origin="manual",
+        denied_principal_keys=denied_pkeys
+    )
+
+    if payload.apply_to_folder and document.folder_path:
+        siblings = db.query(Document).filter(
+            Document.tenant_id == document.tenant_id,
+            Document.folder_path == document.folder_path,
+            Document.id != document.id
+        ).all()
+        for sib in siblings:
+            sib.access_roles = json.dumps(role_strings)
+            sib.denied_users = json.dumps(denied_strings)
+            sync_document_acl_entries(
+                db=db,
+                document_id=sib.id,
+                principal_keys=allowed_pkeys,
+                origin="manual",
+                denied_principal_keys=denied_pkeys
+            )
+
+    log_access(db, user, "update_access", "document", str(document_id), f"roles: {role_strings}, denied: {denied_strings}")
     db.commit()
     db.refresh(document)
     return document
