@@ -14,18 +14,25 @@ def get_normalized_db_url(url: str) -> str:
 
 db_url = get_normalized_db_url(settings.database_url)
 
-engine = create_engine(
-    db_url,
-    pool_pre_ping=True,
-    pool_size=5,
-    max_overflow=10
-)
+if db_url.startswith("sqlite"):
+    engine = create_engine(
+        db_url,
+        connect_args={"check_same_thread": False}
+    )
+else:
+    engine = create_engine(
+        db_url,
+        pool_pre_ping=True,
+        pool_size=5,
+        max_overflow=10
+    )
 
 SessionLocal = sessionmaker(
     bind=engine,
     autoflush=False,
     autocommit=False
 )
+
 
 
 class Base(DeclarativeBase):

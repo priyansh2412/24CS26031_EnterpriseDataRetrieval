@@ -7,11 +7,22 @@ _client = None
 def get_qdrant_client() -> QdrantClient:
     global _client
     if _client is None:
-        _client = QdrantClient(
-            url=settings.qdrant_url,
-            api_key=settings.qdrant_api_key or None
-        )
+        try:
+            client = QdrantClient(
+                url=settings.qdrant_url,
+                api_key=settings.qdrant_api_key or None,
+                timeout=2.0
+            )
+            # Test connectivity
+            client.get_collections()
+            _client = client
+        except Exception:
+            # Fallback to local embedded storage if remote Qdrant is not running
+            local_path = settings.data_path / "qdrant_storage"
+            local_path.mkdir(parents=True, exist_ok=True)
+            _client = QdrantClient(path=str(local_path))
     return _client
+
 
 
 def ensure_collection():
