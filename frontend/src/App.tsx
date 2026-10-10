@@ -140,17 +140,23 @@ export default function App() {
   }
 
   const userRole = user?.role_key || user?.role || "employee";
-  const isAdmin = user?.role === "admin" || user?.rank_level === 1;
+  const userRank = user?.rank_level ?? 5;
+  const isAdmin = user?.role === "admin" || userRank === 1;
 
   // Filter navigation items by role access:
-  // 1. Team Workspaces tab is strictly removed for admin logins
-  // 2. Filter by item.roles if specified
+  // For Rank 1 (Admin):
+  //   - Dashboard, AI Search Sessions, Knowledge Library, Analytics & Insights, User Management, Hierarchical Audit Logs, Workspace Settings, Admin Profile
+  //   - Team Workspaces is hidden for Admin
+  // For Ranks other than 1 (Rank 2, 3, 4, etc.):
+  //   - Strictly only 4 tabs: 1. Dashboard, 2. AI Search Sessions, 3. Team Workspaces, 4. My Profile
   const allowedNav = NAV_ITEMS.filter((item) => {
-    if (item.hideForAdmin && isAdmin) {
-      return false;
+    if (isAdmin) {
+      if (item.hideForAdmin) return false;
+      return true;
+    } else {
+      // Non-admins (rank other than 1): only dashboard, chat, teams, and profile
+      return ["dashboard", "chat", "teams", "profile"].includes(item.id);
     }
-    if (!item.roles) return true;
-    return item.roles.includes(user?.role || "employee");
   }).map((item) => {
     if (item.id === "profile") {
       return {
@@ -162,7 +168,9 @@ export default function App() {
   });
 
   const activeNavItem = NAV_ITEMS.find((item) => item.path === currentPath);
-  const isAuthorized = !activeNavItem?.roles || activeNavItem.roles.includes(user?.role || "employee");
+  const isAuthorized = isAdmin
+    ? currentPath !== "/teams"
+    : ["/dashboard", "/chat", "/teams", "/profile", "/"].includes(currentPath);
 
   return (
     <main className={`app-shell ${theme}-theme`}>

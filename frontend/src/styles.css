@@ -892,24 +892,29 @@ button:disabled {
 }
 
 /* Modal Overlay & Animations */
-.modal-overlay {
+.modal-overlay,
+.modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(15, 23, 42, 0.55);
-  backdrop-filter: blur(5px);
-  z-index: 50;
+  background: rgba(15, 23, 42, 0.65);
+  backdrop-filter: blur(6px);
+  z-index: 9999;
   display: grid;
   place-items: center;
   padding: 20px;
 }
 
-.modal-content {
-  width: min(460px, 100%);
+.modal-content,
+.modal-card {
+  width: min(520px, 100%);
+  max-height: 90vh;
+  overflow-y: auto;
   background: #ffffff;
   border: 1px solid #e2e8f0;
   border-radius: 16px;
-  box-shadow: 0 24px 50px rgba(15, 23, 42, 0.18);
-  padding: 28px;
+  box-shadow: 0 24px 50px rgba(15, 23, 42, 0.22);
+  padding: 26px;
+  position: relative;
 }
 
 .animated-scale-up {
@@ -4058,6 +4063,211 @@ button:disabled {
   border-radius: 10px;
   border: 1px solid #cbd5e1;
   font-size: 13.5px;
+}
+
+/* ==========================================================================
+   ENHANCED TEAM MEMBER MODAL
+   ========================================================================== */
+
+.team-member-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 14px;
+}
+
+.team-search-box {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.team-search-box .search-icon {
+  position: absolute;
+  left: 12px;
+  color: #94a3b8;
+  pointer-events: none;
+}
+
+.team-search-box input {
+  width: 100%;
+  padding: 9px 12px 9px 38px;
+  border-radius: 9px;
+  border: 1px solid #cbd5e1;
+  font-size: 13px;
+  background: #f8fafc;
+}
+
+.team-search-box input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  background: #ffffff;
+}
+
+.candidate-users-list {
+  max-height: 200px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-right: 4px;
+}
+
+.candidate-user-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  cursor: pointer;
+  transition: all 0.15s ease-in-out;
+}
+
+.candidate-user-card:hover {
+  border-color: #93c5fd;
+  background: #f8fbff;
+}
+
+.candidate-user-card.selected {
+  border-color: #2563eb;
+  background: #eff6ff;
+  box-shadow: 0 0 0 1.5px #2563eb;
+}
+
+.user-card-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.user-avatar-circle {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #3b82f6, #6366f1);
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 13px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.user-card-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.user-card-email {
+  font-size: 13px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.user-card-sub {
+  font-size: 11px;
+  color: #64748b;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-top: 2px;
+}
+
+.rank-badge-pill {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 7px;
+  border-radius: 9999px;
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.role-key-pill {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 7px;
+  border-radius: 9999px;
+  background: #e0e7ff;
+  color: #3730a3;
+  text-transform: uppercase;
+}
+
+.role-selection-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.role-option-card {
+  display: flex;
+  flex-direction: column;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  cursor: pointer;
+  transition: all 0.15s ease-in-out;
+}
+
+.role-option-card:hover {
+  border-color: #93c5fd;
+}
+
+.role-option-card.active {
+  border-color: #2563eb;
+  background: #eff6ff;
+  box-shadow: 0 0 0 1.5px #2563eb;
+}
+
+.role-option-title {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #0f172a;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.role-option-desc {
+  font-size: 11px;
+  color: #64748b;
+  margin-top: 4px;
+}
+
+.check-icon-active {
+  color: #2563eb;
+}
+
+/* Dark theme overrides for team modals */
+.app-shell.dark-theme .candidate-user-card,
+.app-shell.dark-theme .role-option-card {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+.app-shell.dark-theme .candidate-user-card:hover,
+.app-shell.dark-theme .role-option-card:hover {
+  border-color: #60a5fa;
+  background: #1e3a5f;
+}
+
+.app-shell.dark-theme .candidate-user-card.selected,
+.app-shell.dark-theme .role-option-card.active {
+  border-color: #3b82f6;
+  background: #1e3a8a;
+}
+
+.app-shell.dark-theme .user-card-email,
+.app-shell.dark-theme .role-option-title {
+  color: #f8fafc;
+}
+
+.app-shell.dark-theme .team-search-box input {
+  background: #0f172a;
+  border-color: #334155;
+  color: #f8fafc;
 }
 
 /* ==========================================================================

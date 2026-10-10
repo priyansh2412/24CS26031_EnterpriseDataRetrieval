@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Users, Plus, MessageSquare, FolderKanban, UserPlus, Trash2, Send, ShieldCheck, FileText, CheckCircle2 } from "lucide-react";
+import { Users, Plus, MessageSquare, FolderKanban, UserPlus, Trash2, Send, ShieldCheck, FileText, CheckCircle2, Search, Crown, X } from "lucide-react";
 import { TeamChatMessageItem, TeamItem, UserProfile, request } from "../api";
 
 interface TeamsPageProps {
@@ -22,8 +22,10 @@ export default function TeamsPage({ currentUser }: TeamsPageProps) {
 
   // Add Member State
   const [showAddMemberModal, setShowAddMemberModal] = useState(false);
-  const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
+  const [selectedUserId, setSelectedUserId] = useState<string>("");
+  const [userSearchTerm, setUserSearchTerm] = useState("");
   const [teamRole, setTeamRole] = useState("member");
+  const [addingMember, setAddingMember] = useState(false);
 
   // Shared Chat State
   const [chatMessages, setChatMessages] = useState<TeamChatMessageItem[]>([]);
@@ -100,6 +102,7 @@ export default function TeamsPage({ currentUser }: TeamsPageProps) {
     e.preventDefault();
     if (!activeTeamId || !selectedUserId) return;
 
+    setAddingMember(true);
     try {
       const updatedTeam = await request<TeamItem>(`/api/teams/${activeTeamId}/members`, {
         method: "POST",
@@ -111,9 +114,13 @@ export default function TeamsPage({ currentUser }: TeamsPageProps) {
 
       setTeams(teams.map((t) => (t.id === activeTeamId ? updatedTeam : t)));
       setShowAddMemberModal(false);
-      setSelectedUserId(null);
+      setSelectedUserId("");
+      setUserSearchTerm("");
+      setTeamRole("member");
     } catch (err) {
       alert((err as Error).message || "Failed to add member to team");
+    } finally {
+      setAddingMember(false);
     }
   };
 
@@ -312,12 +319,24 @@ export default function TeamsPage({ currentUser }: TeamsPageProps) {
 
       {/* CREATE TEAM MODAL */}
       {showCreateModal && (
-        <div className="modal-backdrop">
-          <div className="modal-card">
+        <div className="modal-overlay" onClick={() => setShowCreateModal(false)}>
+          <div className="modal-content animated-scale-up" onClick={(e) => e.stopPropagation()}>
             <header className="modal-header">
-              <h3>Build New Project Team</h3>
-              <button className="close-btn" onClick={() => setShowCreateModal(false)}>
-                ×
+              <div className="glow-icon">
+                <FolderKanban size={22} />
+              </div>
+              <div>
+                <h3>Build New Project Team</h3>
+                <p>Create a dedicated enterprise workspace and shared project chatbot</p>
+              </div>
+              <button
+                type="button"
+                className="close-btn"
+                style={{ marginLeft: "auto" }}
+                onClick={() => setShowCreateModal(false)}
+                title="Close"
+              >
+                <X size={18} />
               </button>
             </header>
             <form onSubmit={handleCreateTeam} className="modal-body">
@@ -351,8 +370,8 @@ export default function TeamsPage({ currentUser }: TeamsPageProps) {
                 />
               </div>
 
-              <div className="modal-footer">
-                <button type="button" className="btn-outline" onClick={() => setShowCreateModal(false)}>
+              <div className="modal-actions">
+                <button type="button" className="btn-outline" onClick={() => setShowCreateModal(false)} disabled={creating}>
                   Cancel
                 </button>
                 <button type="submit" className="btn-primary" disabled={creating}>
@@ -365,48 +384,135 @@ export default function TeamsPage({ currentUser }: TeamsPageProps) {
       )}
 
       {/* ADD MEMBER MODAL */}
-      {showAddMemberModal && (
-        <div className="modal-backdrop">
-          <div className="modal-card">
+      {showAddMemberModal && currentTeam && (
+        <div className="modal-overlay" onClick={() => setShowAddMemberModal(false)}>
+          <div className="modal-content animated-scale-up" onClick={(e) => e.stopPropagation()}>
             <header className="modal-header">
-              <h3>Add User to {currentTeam?.name}</h3>
-              <button className="close-btn" onClick={() => setShowAddMemberModal(false)}>
-                ×
+              <div className="glow-icon">
+                <UserPlus size={22} />
+              </div>
+              <div>
+                <h3>Add Member to {currentTeam.name}</h3>
+                <p>Assign colleague to Project: <strong>{currentTeam.project_name}</strong></p>
+              </div>
+              <button
+                type="button"
+                className="close-btn"
+                style={{ marginLeft: "auto" }}
+                onClick={() => setShowAddMemberModal(false)}
+                title="Close"
+              >
+                <X size={18} />
               </button>
             </header>
-            <form onSubmit={handleAddMember} className="modal-body">
+
+            <form onSubmit={handleAddMember} className="team-member-modal-body">
+              {/* Search Colleagues */}
               <div className="form-group">
-                <label>Select User</label>
-                <select
-                  value={selectedUserId || ""}
-                  onChange={(e) => setSelectedUserId(Number(e.target.value))}
-                  required
+                <label style={{ fontSize: "12px", fontWeight: 700, color: "#475569" }}>
+                  Select Colleague
+                </label>
+                <div className="team-search-box">
+                  <Search size={15} className="search-icon" />
+                  <input
+                    type="text"
+                    placeholder="Search colleagues by email, name, or role..."
+                    value={userSearchTerm}
+                    onChange={(e) => setUserSearchTerm(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              {/* Scrollable Candidate Cards */}
+              <div className="candidate-users-list">
+                {allUsers
+                  .filter((u) => !currentTeam.members.some((m) => String(m.user_id) === String(u.id)))
+                  .filter((u) => {
+                    if (!userSearchTerm.trim()) return true;
+                    const q = userSearchTerm.toLowerCase();
+                    return (
+                      u.email.toLowerCase().includes(q) ||
+                      (u.role_key && u.role_key.toLowerCase().includes(q)) ||
+                      (u.display_name && u.display_name.toLowerCase().includes(q))
+                    );
+                  })
+                  .map((u) => {
+                    const isSelected = selectedUserId === String(u.id);
+                    return (
+                      <div
+                        key={String(u.id)}
+                        className={`candidate-user-card ${isSelected ? "selected" : ""}`}
+                        onClick={() => setSelectedUserId(String(u.id))}
+                      >
+                        <div className="user-card-left">
+                          <div className="user-avatar-circle">
+                            {(u.display_name || u.email).charAt(0).toUpperCase()}
+                          </div>
+                          <div className="user-card-info">
+                            <span className="user-card-email">{u.email}</span>
+                            <div className="user-card-sub">
+                              <span className="rank-badge-pill">Rank {u.rank_level}</span>
+                              <span className="role-key-pill">{u.role_key || u.role}</span>
+                              {u.display_name && <span>• {u.display_name}</span>}
+                            </div>
+                          </div>
+                        </div>
+                        {isSelected && <CheckCircle2 size={18} className="check-icon-active" />}
+                      </div>
+                    );
+                  })}
+
+                {allUsers.filter((u) => !currentTeam.members.some((m) => String(m.user_id) === String(u.id))).length === 0 && (
+                  <div style={{ textAlign: "center", padding: "16px", color: "#64748b", fontSize: "12.5px" }}>
+                    All available enterprise colleagues are already members of this team.
+                  </div>
+                )}
+              </div>
+
+              {/* Team Role Cards */}
+              <div className="form-group">
+                <label style={{ fontSize: "12px", fontWeight: 700, color: "#475569" }}>
+                  Role in Team
+                </label>
+                <div className="role-selection-grid">
+                  <div
+                    className={`role-option-card ${teamRole === "member" ? "active" : ""}`}
+                    onClick={() => setTeamRole("member")}
+                  >
+                    <div className="role-option-title">
+                      <Users size={14} /> Team Member
+                    </div>
+                    <div className="role-option-desc">Collaborator with shared team RAG chat & search access</div>
+                  </div>
+
+                  <div
+                    className={`role-option-card ${teamRole === "lead" ? "active" : ""}`}
+                    onClick={() => setTeamRole("lead")}
+                  >
+                    <div className="role-option-title">
+                      <Crown size={14} /> Team Lead
+                    </div>
+                    <div className="role-option-desc">Project lead with membership management permissions</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Modal Actions */}
+              <div className="modal-actions">
+                <button
+                  type="button"
+                  className="btn-outline"
+                  onClick={() => setShowAddMemberModal(false)}
+                  disabled={addingMember}
                 >
-                  <option value="">-- Choose User Account --</option>
-                  {allUsers
-                    .filter((u) => !currentTeam?.members.some((m) => m.user_id === u.id))
-                    .map((u) => (
-                      <option key={u.id} value={u.id}>
-                        {u.email} (Rank {u.rank_level}: {u.role_key})
-                      </option>
-                    ))}
-                </select>
-              </div>
-
-              <div className="form-group">
-                <label>Team Role</label>
-                <select value={teamRole} onChange={(e) => setTeamRole(e.target.value)}>
-                  <option value="member">Team Member</option>
-                  <option value="lead">Team Lead</option>
-                </select>
-              </div>
-
-              <div className="modal-footer">
-                <button type="button" className="btn-outline" onClick={() => setShowAddMemberModal(false)}>
                   Cancel
                 </button>
-                <button type="submit" className="btn-primary" disabled={!selectedUserId}>
-                  Add to Team
+                <button
+                  type="submit"
+                  className="btn-primary"
+                  disabled={!selectedUserId || addingMember}
+                >
+                  <UserPlus size={15} /> {addingMember ? "Adding Member..." : "Add to Team"}
                 </button>
               </div>
             </form>
