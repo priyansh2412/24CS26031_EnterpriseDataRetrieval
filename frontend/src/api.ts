@@ -148,9 +148,19 @@ let activeApi = PRIMARY_API;
 
 export const token = () => localStorage.getItem("rag_token");
 
+export interface TempDocItem {
+  document_id: string;
+  name: string;
+  chunk_count: number;
+  size_bytes?: number;
+  created_at?: string;
+  status?: string;
+}
+
 export async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const isFormData = typeof FormData !== "undefined" && options.body instanceof FormData;
   const headers: Record<string, string> = {
-    "Content-Type": "application/json",
+    ...(!isFormData ? { "Content-Type": "application/json" } : {}),
     ...((options.headers as Record<string, string>) || {}),
   };
   
