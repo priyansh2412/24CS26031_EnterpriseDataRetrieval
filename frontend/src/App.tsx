@@ -13,7 +13,7 @@ import {
   Sun,
   Moon,
   FolderKanban,
-  Building2,
+  UserCheck,
 } from "lucide-react";
 import ChatPage from "./pages/ChatPage";
 import DocumentsPage from "./pages/DocumentsPage";
@@ -25,6 +25,7 @@ import AuditLogsPage from "./pages/AuditLogsPage";
 import SettingsPage from "./pages/SettingsPage";
 import SetupWizardPage from "./pages/SetupWizardPage";
 import TeamsPage from "./pages/TeamsPage";
+import ProfilePage from "./pages/ProfilePage";
 import SystemEnterprisePortal from "./pages/SystemEnterprisePortal";
 import { SetupStatus, UserProfile, request, token } from "./api";
 
@@ -34,17 +35,19 @@ type NavRoute = {
   label: string;
   icon: any;
   roles?: string[];
+  hideForAdmin?: boolean;
 };
 
 const NAV_ITEMS: NavRoute[] = [
   { id: "dashboard", path: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { id: "chat", path: "/chat", label: "AI Search Sessions", icon: MessageSquare },
-  { id: "teams", path: "/teams", label: "Team Workspaces", icon: FolderKanban },
+  { id: "teams", path: "/teams", label: "Team Workspaces", icon: FolderKanban, hideForAdmin: true },
   { id: "documents", path: "/documents", label: "Knowledge Library", icon: Files },
   { id: "analytics", path: "/analytics", label: "Analytics & Insights", icon: BarChart3, roles: ["admin", "hr", "manager", "finance"] },
   { id: "users", path: "/users", label: "User Management", icon: Users },
   { id: "audit-logs", path: "/audit-logs", label: "Hierarchical Audit Logs", icon: Activity },
   { id: "settings", path: "/settings", label: "Workspace Settings", icon: Settings },
+  { id: "profile", path: "/profile", label: "Admin Profile", icon: UserCheck },
 ];
 
 export default function App() {
@@ -63,9 +66,24 @@ export default function App() {
         setSetupInitialized(status.is_initialized);
       })
       .catch(() => {
-        // Default to initialized if backend check fails
         setSetupInitialized(true);
       });
+  };
+
+  const fetchUserProfile = () => {
+    if (authenticated) {
+      request<UserProfile>("/api/auth/me")
+        .then((userData) => {
+          setUser(userData);
+          if (window.location.pathname === "/" || window.location.pathname === "") {
+            navigate("/dashboard");
+          }
+        })
+        .catch(() => {
+          localStorage.removeItem("rag_token");
+          setAuthenticated(false);
+        });
+    }
   };
 
   useEffect(() => {
@@ -83,17 +101,7 @@ export default function App() {
   // Sync state with authentication & fetch user profile
   useEffect(() => {
     if (authenticated && setupInitialized) {
-      request<UserProfile>("/api/auth/me")
-        .then((userData) => {
-          setUser(userData);
-          if (window.location.pathname === "/" || window.location.pathname === "") {
-            navigate("/dashboard");
-          }
-        })
-        .catch(() => {
-          localStorage.removeItem("rag_token");
-          setAuthenticated(false);
-        });
+      fetchUserProfile();
     }
   }, [authenticated, setupInitialized]);
 
@@ -132,11 +140,25 @@ export default function App() {
   }
 
   const userRole = user?.role_key || user?.role || "employee";
+  const isAdmin = user?.role === "admin" || user?.rank_level === 1;
 
-  // Filter navigation items by role access
+  // Filter navigation items by role access:
+  // 1. Team Workspaces tab is strictly removed for admin logins
+  // 2. Filter by item.roles if specified
   const allowedNav = NAV_ITEMS.filter((item) => {
+    if (item.hideForAdmin && isAdmin) {
+      return false;
+    }
     if (!item.roles) return true;
     return item.roles.includes(user?.role || "employee");
+  }).map((item) => {
+    if (item.id === "profile") {
+      return {
+        ...item,
+        label: isAdmin ? "Admin Profile" : "My Profile",
+      };
+    }
+    return item;
   });
 
   const activeNavItem = NAV_ITEMS.find((item) => item.path === currentPath);
@@ -152,7 +174,7 @@ export default function App() {
           </div>
           <div className="brand-copy">
             <strong>Atlas Enterprise</strong>
-            <span>Knowledge Workspace</span>
+            <span>{user?.enterprise_name || "Knowledge Workspace"}</span>
           </div>
         </div>
 
@@ -184,7 +206,12 @@ export default function App() {
             <span>Grounded Retrieval Augmented Generation (RAG)</span>
           </div>
 
-          <div className="profile">
+          <div
+            className="profile"
+            onClick={() => navigate("/profile")}
+            style={{ cursor: "pointer" }}
+            title="Click to view Profile & Change Password"
+          >
             <div className="avatar">{user?.email?.[0]?.toUpperCase() || "A"}</div>
             <div className="profile-details">
               <strong>{user?.email?.split("@")[0] || "User"}</strong>
@@ -193,7 +220,8 @@ export default function App() {
               </span>
             </div>
             <button
-              onClick={() => {
+              onClick={(e) => {
+                e.stopPropagation();
                 localStorage.removeItem("rag_token");
                 setAuthenticated(false);
               }}
@@ -229,7 +257,12 @@ export default function App() {
               <span>{theme === "light" ? "Dark Theme" : "Light Theme"}</span>
             </button>
 
-            <div className="top-user-pill">
+            <div
+              className="top-user-pill"
+              onClick={() => navigate("/profile")}
+              style={{ cursor: "pointer" }}
+              title="Click to view Admin Profile"
+            >
               <span className={`role-badge ${userRole}`}>RANK {user?.rank_level ?? 5} ({userRole.toUpperCase()})</span>
               <span className="user-email-tag">{user?.email}</span>
             </div>
@@ -250,7 +283,14 @@ export default function App() {
 
           {currentPath === "/chat" && <ChatPage />}
 
-          {currentPath === "/teams" && <TeamsPage currentUser={user} />}
+          {currentPath === "/teams" && !isAdmin && <TeamsPage currentUser={user} />}
+
+          {currentPath === "/teams" && isAdmin && (
+            <div className="alert-banner info">
+              <AlertCircle size={16} />
+              <span>Team Workspaces module is designated for team members and project collaborators.</span>
+            </div>
+          )}
 
           {currentPath === "/documents" && <DocumentsPage />}
 
@@ -261,10 +301,10 @@ export default function App() {
           {currentPath === "/audit-logs" && <AuditLogsPage />}
 
           {currentPath === "/settings" && <SettingsPage user={user} />}
+
+          {currentPath === "/profile" && <ProfilePage user={user} onProfileUpdated={fetchUserProfile} />}
         </section>
       </div>
     </main>
   );
 }
-
-

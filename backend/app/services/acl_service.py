@@ -128,7 +128,8 @@ def sync_document_acl_entries(
     principal_keys: list[str],
     origin: str = "source_sync",
     effect: str = "allow",
-    permission: str = "read"
+    permission: str = "read",
+    denied_principal_keys: list[str] | None = None,
 ) -> int:
     """
     Stores document ACL in document_acl_entries and triggers acl_outbox.
@@ -142,10 +143,10 @@ def sync_document_acl_entries(
     doc.acl_version = (doc.acl_version or 1) + 1
     new_version = doc.acl_version
 
-    # Clear existing source_sync entries if updating
+    # Clear existing entries for this document
     db.query(DocumentACLEntry).filter(
         DocumentACLEntry.document_id == document_id,
-        DocumentACLEntry.origin == origin
+        DocumentACLEntry.origin.in_([origin, "manual", "source_sync"])
     ).delete()
 
     for pkey in set(principal_keys):
@@ -155,11 +156,25 @@ def sync_document_acl_entries(
                     document_id=document_id,
                     principal_key=pkey.strip(),
                     permission=permission,
-                    effect=effect,
+                    effect="allow",
                     origin=origin,
                     created_at=datetime.utcnow()
                 )
             )
+
+    if denied_principal_keys:
+        for dkey in set(denied_principal_keys):
+            if dkey and dkey.strip():
+                db.add(
+                    DocumentACLEntry(
+                        document_id=document_id,
+                        principal_key=dkey.strip(),
+                        permission=permission,
+                        effect="deny",
+                        origin=origin,
+                        created_at=datetime.utcnow()
+                    )
+                )
 
     # Add to outbox for Qdrant payload synchronization
     outbox = ACLOutbox(
@@ -184,6 +199,9 @@ def process_acl_outbox(db: Session):
     for item in pending:
         try:
             # Fetch all active allowed principal keys for the document
+            doc = db.query(Document).filter(Document.id == item.document_id).first()
+            t_id = doc.tenant_id if doc else None
+
             acl_rows = (
                 db.query(DocumentACLEntry.principal_key)
                 .filter(
@@ -196,15 +214,27 @@ def process_acl_outbox(db: Session):
             if not pkeys:
                 # Default fallback
                 pkeys = [
-                    f"t:{settings.default_tenant_id}",
+                    f"t:{t_id or settings.default_tenant_id}",
                     "r:employee",
                     "r:admin"
                 ]
 
+            deny_rows = (
+                db.query(DocumentACLEntry.principal_key)
+                .filter(
+                    DocumentACLEntry.document_id == item.document_id,
+                    DocumentACLEntry.effect == "deny"
+                )
+                .all()
+            )
+            denied_pkeys = [r[0] for r in deny_rows]
+
             update_document_acl_payload(
                 document_id=item.document_id,
                 principal_keys=pkeys,
-                acl_version=item.acl_version
+                acl_version=item.acl_version,
+                tenant_id=t_id,
+                denied_principals=denied_pkeys
             )
 
             item.status = "done"
@@ -229,9 +259,18 @@ def verify_document_access(db: Session, user: User, document_id: str) -> bool:
     if not doc:
         return False
 
+    # Check doc.denied_users JSON list first
+    if doc.denied_users:
+        try:
+            denied_list = [d.lower() for d in json.loads(doc.denied_users or "[]")]
+            if user.email.lower() in denied_list or str(user.id).lower() in denied_list:
+                return False
+        except Exception:
+            pass
+
     user_principals = set(resolve_user_principals(db, user, doc.tenant_id, doc.project_id))
 
-    # Check explicit deny entries first
+    # Check explicit deny entries next
     deny_entries = (
         db.query(DocumentACLEntry.principal_key)
         .filter(

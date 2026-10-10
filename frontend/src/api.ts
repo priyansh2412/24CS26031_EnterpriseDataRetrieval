@@ -22,10 +22,26 @@ export interface SystemSetupPayload {
 export interface UserProfile {
   id: string | number;
   email: string;
+  display_name?: string;
   role: string;
   role_key?: string;
   rank_level: number;
   is_active: boolean;
+  tenant_id?: string;
+  enterprise_name?: string;
+  created_at?: string;
+}
+
+export interface UserItem {
+  id: string | number;
+  email: string;
+  display_name?: string;
+  role: string;
+  role_key?: string;
+  rank_level: number;
+  is_active: boolean;
+  tenant_id?: string;
+  created_at?: string;
 }
 
 export interface AuditLogItem {
@@ -98,6 +114,34 @@ export interface EnterpriseCreatePayload {
   tenant_id?: string;
 }
 
+export interface EnterpriseDriveLinkItem {
+  id: number;
+  tenant_id: string;
+  name: string;
+  drive_url: string;
+  drive_id?: string;
+  is_folder: boolean;
+  is_password_protected: boolean;
+  status: string;
+  doc_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DocumentItem {
+  id: string;
+  name: string;
+  source: string;
+  status: string;
+  chunk_count: number;
+  access_roles?: string;
+  denied_users?: string;
+  folder_path?: string;
+  drive_link_id?: number | null;
+  summary?: string;
+  created_at: string;
+}
+
 const PRIMARY_API = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
 const FALLBACK_API = "http://127.0.0.1:8001";
 let activeApi = PRIMARY_API;
@@ -107,7 +151,7 @@ export const token = () => localStorage.getItem("rag_token");
 export async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    ...(options.headers as Record<string, string> || {}),
+    ...((options.headers as Record<string, string>) || {}),
   };
   
   const currentToken = token();
@@ -116,14 +160,15 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
   }
 
   let response: Response | null = null;
-  const targets = [activeApi, activeApi === PRIMARY_API ? FALLBACK_API : PRIMARY_API];
+  const targets = [PRIMARY_API, FALLBACK_API];
 
   for (const target of targets) {
     try {
-      response = await fetch(`${target}${path}`, {
+      const res = await fetch(`${target}${path}`, {
         ...options,
         headers,
       });
+      response = res;
       activeApi = target;
       break;
     } catch {
@@ -132,7 +177,8 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
   }
 
   if (!response) {
-    throw new Error(`Unable to connect to backend server at ${activeApi}. Please ensure the backend server is running.`);
+    activeApi = PRIMARY_API;
+    throw new Error(`Unable to connect to backend server at ${PRIMARY_API}. Please ensure the backend server is running.`);
   }
 
   if (!response.ok) {
