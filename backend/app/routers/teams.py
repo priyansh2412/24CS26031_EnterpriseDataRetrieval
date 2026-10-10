@@ -1,14 +1,17 @@
+from pathlib import Path
 import json
+import shutil
 import uuid
 from typing import Any
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.security import get_current_user
-from app.models import AuditLog, LogSeverity, Team, TeamChatMessage, TeamMember, User
+from app.models import AuditLog, Document, LogSeverity, Team, TeamChatMessage, TeamMember, User
 from app.schemas import Citation, TeamChatMessageOut, TeamCreate, TeamMemberAdd, TeamMemberOut, TeamOut
 from app.services.citation_service import format_context_prompt
+from app.services.ingestion_service import ingest_temporary_document, delete_temporary_document
 from app.services.llm import generate_answer
 from app.services.retrieval_service import retrieve_authorized_chunks
 
@@ -342,3 +345,121 @@ def send_team_chat_message(team_id: int, payload: dict, db: Session = Depends(ge
         citations=citations,
         created_at=team_msg.created_at
     )
+
+
+@router.post("/{team_id}/upload-temp")
+async def upload_team_temp_document(
+    team_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Upload a temporary document for this team's workspace chat.
+    Ingests into Qdrant for this team.
+    Available only to members of this team.
+    """
+    team = db.get(Team, team_id)
+    if not team:
+        raise HTTPException(status_code=404, detail="Team not found")
+
+    user_tenant = str(current_user.tenant_id) if current_user.tenant_id else None
+    if not _is_system_admin(current_user):
+        if user_tenant and team.tenant_id and team.tenant_id != user_tenant:
+            raise HTTPException(status_code=403, detail="Access denied: team belongs to another enterprise")
+        if not _user_in_team(db, team_id, current_user.id) and team.created_by_id != current_user.id:
+            raise HTTPException(status_code=403, detail="Access denied: you are not a member of this team")
+
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="No file selected")
+
+    ext = Path(file.filename).suffix.lower()
+    if ext not in [".pdf", ".docx", ".txt", ".md", ".csv", ".json", ".pptx", ".log"]:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported file format '{ext}'. Supported: PDF, DOCX, TXT, MD, CSV, JSON."
+        )
+
+    temp_dir = settings.data_path / "temp_uploads"
+    temp_dir.mkdir(parents=True, exist_ok=True)
+    temp_file_path = temp_dir / f"team_{team_id}_{uuid.uuid4().hex}_{file.filename}"
+
+    with open(temp_file_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+
+    try:
+        result = ingest_temporary_document(
+            file_path=temp_file_path,
+            filename=file.filename,
+            user=current_user,
+            db=db,
+            team_id=team_id
+        )
+        return result
+    except Exception as e:
+        if temp_file_path.exists():
+            temp_file_path.unlink(missing_ok=True)
+        raise HTTPException(status_code=400, detail=f"Failed to process document: {str(e)}")
+
+
+@router.get("/{team_id}/temp-docs")
+def list_team_temp_documents(
+    team_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    team = db.get(Team, team_id)
+    if not team:
+        raise HTTPException(status_code=404, detail="Team not found")
+
+    user_tenant = str(current_user.tenant_id) if current_user.tenant_id else None
+    if not _is_system_admin(current_user):
+        if user_tenant and team.tenant_id and team.tenant_id != user_tenant:
+            raise HTTPException(status_code=403, detail="Access denied: team belongs to another enterprise")
+        if not _user_in_team(db, team_id, current_user.id) and team.created_by_id != current_user.id:
+            raise HTTPException(status_code=403, detail="Access denied: you are not a member of this team")
+
+    docs = (
+        db.query(Document)
+        .filter(
+            Document.source == "temp_team",
+            Document.project_id == str(team_id)
+        )
+        .order_by(Document.created_at.desc())
+        .all()
+    )
+    return [
+        {
+            "document_id": d.id,
+            "name": d.name,
+            "chunk_count": d.chunk_count,
+            "size_bytes": d.size_bytes,
+            "created_at": d.created_at.isoformat() if d.created_at else None,
+        }
+        for d in docs
+    ]
+
+
+@router.delete("/{team_id}/temp-docs/{document_id}")
+def remove_team_temp_document(
+    team_id: int,
+    document_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    team = db.get(Team, team_id)
+    if not team:
+        raise HTTPException(status_code=404, detail="Team not found")
+
+    user_tenant = str(current_user.tenant_id) if current_user.tenant_id else None
+    if not _is_system_admin(current_user):
+        if user_tenant and team.tenant_id and team.tenant_id != user_tenant:
+            raise HTTPException(status_code=403, detail="Access denied: team belongs to another enterprise")
+        if not _user_in_team(db, team_id, current_user.id) and team.created_by_id != current_user.id:
+            raise HTTPException(status_code=403, detail="Access denied: you are not a member of this team")
+
+    success = delete_temporary_document(document_id, current_user, db, team_id=team_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Temporary document not found")
+    return {"status": "success", "message": "Team temporary document deleted."}
+

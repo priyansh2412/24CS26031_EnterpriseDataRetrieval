@@ -1,12 +1,14 @@
+from pathlib import Path
 import json
+import shutil
 import uuid
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Form
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.security import current_user
-from app.models import Document, Feedback, QueryLog, User
+from app.models import Document, Feedback, QueryLog, User, TeamMember
 from app.schemas import (
     AskRequest,
     AskResponse,
@@ -20,6 +22,7 @@ from app.services.access import log_access
 from app.services.acl_service import verify_document_access
 from app.services.citation_service import format_context_prompt
 from app.services.embedding_service import embed_text
+from app.services.ingestion_service import ingest_temporary_document, delete_temporary_document
 from app.services.llm import generate_answer
 from app.services.qdrant_service import search
 from app.services.rag_service import answer_question
@@ -34,6 +37,24 @@ def check_document_payload_access(payload: dict, user: User, db: Session) -> boo
     (denied_principals, principal_keys) and database ACL rules.
     Returns True if accessible, False if restricted/denied.
     """
+    # 0. Strict privacy enforcement for temporary user documents:
+    # Accessible ONLY to the user who uploaded it!
+    if payload.get("is_temporary") or payload.get("source") == "temp_user":
+        uploaded_by_email = str(payload.get("uploaded_by_email") or "").strip().lower()
+        user_email = user.email.strip().lower()
+        if uploaded_by_email and uploaded_by_email != user_email:
+            return False
+
+    if payload.get("source") == "temp_team":
+        team_id = payload.get("team_id")
+        if team_id:
+            try:
+                is_mem = db.query(TeamMember).filter(TeamMember.team_id == int(team_id), TeamMember.user_id == user.id).first()
+                if not is_mem and str(payload.get("uploaded_by_email") or "").strip().lower() != user.email.strip().lower():
+                    return False
+            except Exception:
+                pass
+
     user_role = (user.role.value if hasattr(user.role, "value") else str(user.role or "employee")).lower()
     if user_role == "admin" or user.rank_level == 1:
         return True
@@ -356,3 +377,90 @@ def clear_chat_history(
     ).delete()
     db.commit()
     return {"status": "cleared"}
+
+
+@router.post("/upload-temp")
+async def upload_temp_document(
+    file: UploadFile = File(...),
+    session_id: str | None = Form(None),
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user)
+):
+    """
+    Upload a temporary document for current user's chat session.
+    Ingests into Qdrant for one-time/session usage.
+    Available ONLY to this user's chat.
+    """
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="No file selected")
+
+    ext = Path(file.filename).suffix.lower()
+    if ext not in [".pdf", ".docx", ".txt", ".md", ".csv", ".json", ".pptx", ".log"]:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported file format '{ext}'. Supported: PDF, DOCX, TXT, MD, CSV, JSON."
+        )
+
+    temp_dir = settings.data_path / "temp_uploads"
+    temp_dir.mkdir(parents=True, exist_ok=True)
+    temp_file_path = temp_dir / f"{uuid.uuid4().hex}_{file.filename}"
+
+    with open(temp_file_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+
+    try:
+        result = ingest_temporary_document(
+            file_path=temp_file_path,
+            filename=file.filename,
+            user=user,
+            db=db,
+            session_id=session_id
+        )
+        return result
+    except Exception as e:
+        if temp_file_path.exists():
+            temp_file_path.unlink(missing_ok=True)
+        raise HTTPException(status_code=400, detail=f"Failed to process document: {str(e)}")
+
+
+@router.get("/temp-docs")
+def list_temp_documents(
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user)
+):
+    """List active temporary documents for current user."""
+    eff_tenant = str(user.tenant_id or settings.default_tenant_id)
+    docs = (
+        db.query(Document)
+        .filter(
+            Document.source == "temp_user",
+            Document.tenant_id == eff_tenant,
+            Document.owner_email == user.email
+        )
+        .order_by(Document.created_at.desc())
+        .all()
+    )
+    return [
+        {
+            "document_id": d.id,
+            "name": d.name,
+            "chunk_count": d.chunk_count,
+            "size_bytes": d.size_bytes,
+            "created_at": d.created_at.isoformat() if d.created_at else None,
+        }
+        for d in docs
+    ]
+
+
+@router.delete("/temp-docs/{document_id}")
+def remove_temp_document(
+    document_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user)
+):
+    """Remove a temporary document and its vector chunks."""
+    success = delete_temporary_document(document_id, user, db)
+    if not success:
+        raise HTTPException(status_code=404, detail="Temporary document not found or unauthorized")
+    return {"status": "success", "message": "Temporary document deleted."}
+

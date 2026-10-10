@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from "react";
-import { Users, Plus, MessageSquare, FolderKanban, UserPlus, Trash2, Send, ShieldCheck, FileText, CheckCircle2, Search, Crown, X } from "lucide-react";
-import { TeamChatMessageItem, TeamItem, UserProfile, request } from "../api";
+import React, { useEffect, useRef, useState } from "react";
+import { Users, Plus, MessageSquare, FolderKanban, UserPlus, Trash2, Send, ShieldCheck, FileText, CheckCircle2, Search, Crown, X, Paperclip, Upload, Loader2, Sparkles } from "lucide-react";
+import { TeamChatMessageItem, TeamItem, UserProfile, TempDocItem, request } from "../api";
 
 interface TeamsPageProps {
   currentUser: UserProfile | null;
@@ -32,6 +32,11 @@ export default function TeamsPage({ currentUser }: TeamsPageProps) {
   const [inputMessage, setInputMessage] = useState("");
   const [sendingChat, setSendingChat] = useState(false);
 
+  // Team Temporary Documents State
+  const [teamTempDocs, setTeamTempDocs] = useState<TempDocItem[]>([]);
+  const [uploadingTeamDoc, setUploadingTeamDoc] = useState(false);
+  const teamFileInputRef = useRef<HTMLInputElement>(null);
+
   const loadTeamsAndUsers = async () => {
     setLoading(true);
     setError("");
@@ -61,6 +66,45 @@ export default function TeamsPage({ currentUser }: TeamsPageProps) {
     }
   };
 
+  const loadTeamTempDocs = async (tId: number) => {
+    try {
+      const docs = await request<TempDocItem[]>(`/api/teams/${tId}/temp-docs`);
+      setTeamTempDocs(docs || []);
+    } catch {
+      setTeamTempDocs([]);
+    }
+  };
+
+  const handleTeamFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !activeTeamId) return;
+    setUploadingTeamDoc(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      await request<TempDocItem>(`/api/teams/${activeTeamId}/upload-temp`, {
+        method: "POST",
+        body: formData,
+      });
+      await loadTeamTempDocs(activeTeamId);
+    } catch (err) {
+      alert((err as Error).message || "Failed to upload team document");
+    } finally {
+      setUploadingTeamDoc(false);
+      if (teamFileInputRef.current) teamFileInputRef.current.value = "";
+    }
+  };
+
+  const handleDeleteTeamTempDoc = async (docId: string) => {
+    if (!activeTeamId) return;
+    try {
+      await request(`/api/teams/${activeTeamId}/temp-docs/${encodeURIComponent(docId)}`, { method: "DELETE" });
+      setTeamTempDocs((prev) => prev.filter((d) => d.document_id !== docId));
+    } catch (err) {
+      alert((err as Error).message || "Failed to remove team document");
+    }
+  };
+
   useEffect(() => {
     loadTeamsAndUsers();
   }, []);
@@ -68,6 +112,7 @@ export default function TeamsPage({ currentUser }: TeamsPageProps) {
   useEffect(() => {
     if (activeTeamId) {
       loadTeamChat(activeTeamId);
+      loadTeamTempDocs(activeTeamId);
     }
   }, [activeTeamId]);
 
@@ -293,11 +338,58 @@ export default function TeamsPage({ currentUser }: TeamsPageProps) {
                 )}
               </div>
 
+              {/* Active Temporary Team Documents */}
+              {teamTempDocs.length > 0 && (
+                <div className="temp-docs-chat-badge-bar team-temp-badge-bar">
+                  <div className="temp-docs-badge-label">
+                    <Sparkles size={13} style={{ color: "#2563eb" }} />
+                    <span>Attached Team Documents (Scoped to {currentTeam.name}):</span>
+                  </div>
+                  <div className="temp-docs-chips-list">
+                    {teamTempDocs.map((doc) => (
+                      <div key={doc.document_id} className="temp-doc-active-chip">
+                        <FileText size={13} className="chip-file-icon" />
+                        <span className="chip-file-name" title={doc.name}>{doc.name}</span>
+                        <span className="chip-chunks-count">({doc.chunk_count} chunks in Qdrant)</span>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteTeamTempDoc(doc.document_id)}
+                          className="chip-remove-btn"
+                          title="Remove document from team Qdrant vectors"
+                        >
+                          <X size={13} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Chat Input Bar */}
               <form onSubmit={handleSendChat} className="team-chat-input-form">
                 <input
+                  type="file"
+                  ref={teamFileInputRef}
+                  style={{ display: "none" }}
+                  accept=".pdf,.docx,.txt,.md,.csv,.json,.log,.pptx"
+                  onChange={handleTeamFileUpload}
+                />
+                <button
+                  type="button"
+                  className="team-attach-btn"
+                  onClick={() => teamFileInputRef.current?.click()}
+                  disabled={uploadingTeamDoc || sendingChat}
+                  title="Upload document to ingest temporarily for this team workspace"
+                >
+                  {uploadingTeamDoc ? <Loader2 size={16} className="spin-animate" /> : <Paperclip size={16} />}
+                </button>
+                <input
                   type="text"
-                  placeholder={`Ask Team AI Assistant about ${currentTeam.project_name}...`}
+                  placeholder={
+                    teamTempDocs.length > 0
+                      ? `Ask Team AI Assistant about "${teamTempDocs[0].name}" or ${currentTeam.project_name}...`
+                      : `Ask Team AI Assistant about ${currentTeam.project_name}...`
+                  }
                   value={inputMessage}
                   onChange={(e) => setInputMessage(e.target.value)}
                   disabled={sendingChat}
