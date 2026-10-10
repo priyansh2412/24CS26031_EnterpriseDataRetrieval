@@ -11,8 +11,10 @@ from app.core.database import SessionLocal, init_db
 from app.models import (
     Chunk,
     Document,
+    DocumentACLEntry,
     DocumentVersion,
     Source,
+    TeamMember,
 )
 from app.services.acl_service import sync_document_acl_entries
 from app.services.docling_service import parse_and_chunk_document
@@ -405,3 +407,193 @@ def auto_ingest_all_sources(db: Session):
             print(f"Drive ingestion result: {res.get('status')}")
         except Exception as e:
             print(f"Auto drive ingestion error: {e}")
+
+
+def ingest_temporary_document(
+    file_path: Path | str,
+    filename: str,
+    user: Any,
+    db: Session,
+    team_id: int | None = None,
+    session_id: str | None = None,
+) -> dict[str, Any]:
+    """
+    Ingests a document uploaded by a user for temporary one-time / session purpose into Qdrant & Postgres.
+    - Scoped strictly to this user (or this team workspace).
+    - Other users cannot retrieve or access it.
+    - Does NOT modify existing knowledge documents.
+    """
+    p = Path(file_path)
+    if not p.exists() or not p.is_file():
+        raise FileNotFoundError(f"File not found: {file_path}")
+
+    eff_tenant = str(getattr(user, "tenant_id", None) or settings.default_tenant_id)
+    ensure_collection(eff_tenant)
+    checksum = calculate_file_hash(p)
+
+    if team_id:
+        doc_id = f"temp-team-{team_id}-{uuid.uuid4().hex[:8]}"
+        source = "temp_team"
+        project_id = str(team_id)
+        folder_path = f"/team_{team_id}_temp"
+        pkeys = [f"p:{team_id}", f"p:project-{team_id}"]
+    else:
+        doc_id = f"temp-usr-{uuid.uuid4().hex[:10]}"
+        source = "temp_user"
+        project_id = str(user.id)[:36]
+        folder_path = "/user_temp_uploads"
+        pkeys = [f"u:{user.id}", f"u:user-{user.id}", f"u:{user.email.lower()}"]
+
+    chunks_data = parse_and_chunk_document(p)
+    if not chunks_data:
+        raise ValueError("No extractable text found in document.")
+
+    doc = Document(
+        id=doc_id,
+        tenant_id=eff_tenant,
+        project_id=project_id,
+        name=filename,
+        source=source,
+        source_uri=str(p.resolve()),
+        folder_path=folder_path,
+        mime_type="application/pdf" if p.suffix.lower() == ".pdf" else "text/plain",
+        size_bytes=p.stat().st_size,
+        owner_email=user.email,
+        checksum=checksum,
+        source_hash=checksum,
+        status="ready",
+        chunk_count=len(chunks_data),
+        acl_version=1,
+        access_roles="[]",
+        denied_users="[]",
+        created_at=datetime.utcnow(),
+        updated_at=datetime.utcnow(),
+    )
+    db.add(doc)
+    db.commit()
+
+    ver_id = f"ver-{uuid.uuid4().hex[:8]}"
+    db.add(
+        DocumentVersion(
+            id=ver_id,
+            document_id=doc_id,
+            version_number=1,
+            version_no=1,
+            checksum=checksum,
+            content_hash=checksum,
+            file_size=p.stat().st_size,
+            created_at=datetime.utcnow(),
+        )
+    )
+    db.commit()
+
+    vector_count = 0
+    for chunk in chunks_data:
+        chunk_text = chunk["text"]
+        chunk_id = str(uuid.uuid4())
+        text_hash = hashlib.sha256(chunk_text.encode("utf-8")).hexdigest()
+
+        db_chunk = Chunk(
+            id=chunk_id,
+            tenant_id=eff_tenant,
+            document_id=doc_id,
+            version_id=ver_id,
+            project_id=project_id,
+            chunk_index=chunk["chunk_index"],
+            page_start=chunk.get("page_start"),
+            page_end=chunk.get("page_end"),
+            section_path=chunk.get("section_path"),
+            text=chunk_text,
+            text_hash=text_hash,
+            embedding_model=settings.embedding_model,
+            index_state="indexed",
+            created_at=datetime.utcnow(),
+        )
+        db.add(db_chunk)
+
+        embedding = embed_text(chunk_text)
+        payload = {
+            "chunk_id": chunk_id,
+            "tenant_id": eff_tenant,
+            "document_id": doc_id,
+            "version_id": ver_id,
+            "project_id": project_id,
+            "is_temporary": True,
+            "source": source,
+            "uploaded_by_id": str(user.id),
+            "uploaded_by_email": user.email.lower(),
+            "team_id": team_id,
+            "session_id": session_id,
+            "page_start": chunk.get("page_start"),
+            "page_end": chunk.get("page_end"),
+            "section_path": chunk.get("section_path"),
+            "acl_version": 1,
+            "principal_keys": pkeys,
+        }
+        upsert_chunk(
+            point_id=chunk_id,
+            vector=embedding,
+            payload=payload,
+            tenant_id=eff_tenant
+        )
+        vector_count += 1
+
+    for pkey in pkeys:
+        db.add(
+            DocumentACLEntry(
+                document_id=doc_id,
+                principal_key=pkey,
+                permission="read",
+                effect="allow",
+                origin="source_sync",
+                created_at=datetime.utcnow()
+            )
+        )
+    db.commit()
+
+    return {
+        "document_id": doc_id,
+        "name": filename,
+        "chunk_count": len(chunks_data),
+        "status": "ready",
+        "is_temporary": True,
+        "created_at": doc.created_at.isoformat(),
+    }
+
+
+def delete_temporary_document(
+    document_id: str,
+    user: Any,
+    db: Session,
+    team_id: int | None = None
+) -> bool:
+    """Deletes temporary document, its chunks from DB & Qdrant, and local temp file."""
+    doc = db.query(Document).filter(Document.id == document_id).first()
+    if not doc:
+        return False
+
+    # Check authorization
+    if doc.source == "temp_user":
+        if doc.owner_email != user.email and str(doc.owner_email).lower() != str(user.email).lower():
+            return False
+    elif doc.source == "temp_team":
+        is_member = db.query(TeamMember).filter(
+            TeamMember.team_id == (team_id or int(doc.project_id or 0)),
+            TeamMember.user_id == user.id
+        ).first()
+        if not is_member and (doc.owner_email or "").lower() != user.email.lower():
+            return False
+
+    delete_document_chunks(document_id, tenant_id=doc.tenant_id)
+    db.query(Document).filter(Document.id == document_id).delete()
+    db.commit()
+
+    if doc.source_uri:
+        try:
+            lp = Path(doc.source_uri)
+            if lp.exists() and "temp" in str(lp).lower():
+                lp.unlink(missing_ok=True)
+        except Exception:
+            pass
+
+    return True

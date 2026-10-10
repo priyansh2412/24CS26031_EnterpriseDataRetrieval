@@ -4502,3 +4502,1145 @@ button:disabled {
   color: #f87171;
   background: #450a0a;
 }
+
+/* Temporary Document Ingestion & Attachment UI */
+.temp-docs-chat-badge-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: #f0f7ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 10px;
+  padding: 8px 12px;
+  margin-bottom: 8px;
+}
+
+.temp-docs-badge-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #1e40af;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.temp-docs-chips-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.temp-doc-active-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #ffffff;
+  border: 1px solid #93c5fd;
+  border-radius: 20px;
+  padding: 4px 10px;
+  font-size: 12.5px;
+  color: #1e293b;
+  box-shadow: 0 1px 3px rgba(37, 99, 235, 0.08);
+}
+
+.chip-file-icon {
+  color: #2563eb;
+  flex-shrink: 0;
+}
+
+.chip-file-name {
+  font-weight: 600;
+  max-width: 240px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chip-chunks-count {
+  font-size: 11px;
+  color: #64748b;
+}
+
+.chip-remove-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: none;
+  background: #f1f5f9;
+  color: #64748b;
+  cursor: pointer;
+  padding: 0;
+  transition: all 0.15s ease;
+}
+
+.chip-remove-btn:hover {
+  background: #fee2e2;
+  color: #ef4444;
+}
+
+.chatbot-attach-btn, .team-attach-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  color: #475569;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+}
+
+.chatbot-attach-btn:hover, .team-attach-btn:hover {
+  background: #eff6ff;
+  border-color: #3b82f6;
+  color: #2563eb;
+}
+
+.chatbot-attach-btn:disabled, .team-attach-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.team-temp-badge-bar {
+  margin: 0 16px 10px 16px;
+  background: #f8fafc;
+  border-color: #cbd5e1;
+}
+
+.spin-animate {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* ==========================================================================
+   ENTERPRISE TENANT MANAGEMENT & GATEWAY - CARD-LIKE ARCHITECTURE
+   ========================================================================== */
+
+.ent-page-container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: 100%;
+}
+
+/* 1. Header Card */
+.ent-header-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 24px 28px;
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.04);
+}
+
+.ent-header-left {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ent-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #4f46e5;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+}
+
+.ent-title {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: -0.5px;
+}
+
+.ent-subtitle {
+  margin: 0;
+  font-size: 13.5px;
+  color: #64748b;
+  max-width: 650px;
+}
+
+.ent-add-btn {
+  height: 44px;
+  padding: 0 22px;
+  font-size: 13.5px;
+  font-weight: 600;
+  border-radius: 12px;
+  box-shadow: 0 4px 14px rgba(79, 70, 229, 0.25);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 2. KPI Stats Cards */
+.ent-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+}
+
+.ent-stat-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 20px 24px;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.ent-stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+}
+
+.ent-stat-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+}
+
+.ent-stat-card.card-total::before {
+  background: linear-gradient(90deg, #3b82f6, #6366f1);
+}
+
+.ent-stat-card.card-active::before {
+  background: linear-gradient(90deg, #10b981, #059669);
+}
+
+.ent-stat-card.card-inactive::before {
+  background: linear-gradient(90deg, #f59e0b, #d97706);
+}
+
+.ent-stat-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.ent-stat-label {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #64748b;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.ent-stat-icon-wrap {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+}
+
+.ent-stat-icon-wrap.icon-blue {
+  background: #eff6ff;
+  color: #2563eb;
+  border: 1px solid #bfdbfe;
+}
+
+.ent-stat-icon-wrap.icon-green {
+  background: #ecfdf5;
+  color: #059669;
+  border: 1px solid #a7f3d0;
+}
+
+.ent-stat-icon-wrap.icon-amber {
+  background: #fffbeb;
+  color: #d97706;
+  border: 1px solid #fde68a;
+}
+
+.ent-stat-value {
+  font-size: 32px;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1.1;
+}
+
+.ent-stat-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: #64748b;
+}
+
+.ent-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+
+.dot-blue { background: #3b82f6; }
+.dot-green { background: #10b981; }
+.dot-amber { background: #f59e0b; }
+
+/* 3. Toolbar Card */
+.ent-toolbar-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 12px 18px;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.03);
+}
+
+.ent-search-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 8px 14px;
+  flex: 1;
+  max-width: 460px;
+  transition: all 0.2s ease;
+}
+
+.ent-search-wrapper:focus-within {
+  background: #ffffff;
+  border-color: #4f46e5;
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.12);
+}
+
+.ent-search-icon {
+  color: #64748b;
+  flex-shrink: 0;
+}
+
+.ent-search-input {
+  border: none;
+  background: transparent;
+  outline: none;
+  font-size: 13.5px;
+  color: #0f172a;
+  width: 100%;
+}
+
+.ent-search-clear {
+  border: none;
+  background: none;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 0;
+  font-size: 12px;
+}
+
+.ent-search-clear:hover {
+  color: #0f172a;
+}
+
+.ent-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ent-view-toggle {
+  display: flex;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 3px;
+  gap: 3px;
+}
+
+.ent-view-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 600;
+  transition: all 0.15s ease;
+}
+
+.ent-view-btn.active {
+  background: #ffffff;
+  color: #0f172a;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.08);
+}
+
+.ent-refresh-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 14px;
+  font-size: 12.5px;
+  border-radius: 10px;
+}
+
+/* 4. Enterprise Cards Grid (Card-like Architecture) */
+.ent-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  gap: 18px;
+}
+
+.ent-company-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 22px;
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.04);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.ent-company-card:hover {
+  transform: translateY(-2px);
+  border-color: #cbd5e1;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.08);
+}
+
+.ent-company-card-deactivated {
+  opacity: 0.75;
+  background: #fafafa;
+}
+
+.ent-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.ent-card-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.ent-avatar-badge {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #4f46e5, #6366f1);
+  color: #ffffff;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  box-shadow: 0 4px 10px rgba(79, 70, 229, 0.25);
+}
+
+.ent-brand-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ent-company-name {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 750;
+  color: #0f172a;
+  letter-spacing: -0.3px;
+}
+
+.ent-rank-label {
+  font-size: 11px;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.ent-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 20px;
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.2s ease;
+}
+
+.ent-status-badge .status-indicator-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+
+.badge-active {
+  background: #ecfdf5;
+  color: #065f46;
+  border-color: #a7f3d0;
+}
+
+.badge-active .status-indicator-dot {
+  background: #10b981;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.25);
+}
+
+.badge-active:hover {
+  background: #fee2e2;
+  color: #991b1b;
+  border-color: #fecaca;
+}
+
+.badge-deactivated {
+  background: #fef2f2;
+  color: #991b1b;
+  border-color: #fecaca;
+}
+
+.badge-deactivated .status-indicator-dot {
+  background: #ef4444;
+}
+
+.badge-deactivated:hover {
+  background: #ecfdf5;
+  color: #065f46;
+  border-color: #a7f3d0;
+}
+
+/* Card Body - Mini Field Cards */
+.ent-card-body {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+.ent-detail-box {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 9px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ent-detail-label {
+  font-size: 10px;
+  font-weight: 750;
+  color: #64748b;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.ent-detail-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ent-email-text {
+  font-size: 13px;
+  font-weight: 600;
+  color: #0f172a;
+  word-break: break-all;
+}
+
+.ent-password-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ent-password-pill {
+  font-family: monospace;
+  font-size: 12px;
+  background: #0f172a;
+  color: #f8fafc;
+  padding: 3px 8px;
+  border-radius: 6px;
+  letter-spacing: 1px;
+}
+
+.ent-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.ent-icon-btn:hover {
+  background: #eff6ff;
+  border-color: #3b82f6;
+  color: #2563eb;
+}
+
+.ent-icon-btn.copied {
+  color: #059669;
+  border-color: #10b981;
+}
+
+.ent-tenant-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ent-tenant-text {
+  font-family: monospace;
+  font-size: 11.5px;
+  color: #334155;
+  background: #e2e8f0;
+  padding: 2px 6px;
+  border-radius: 4px;
+  max-width: 230px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ent-date-text {
+  font-size: 12px;
+  color: #475569;
+}
+
+/* Card Footer */
+.ent-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px solid #f1f5f9;
+}
+
+.ent-toggle-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-deactivate {
+  background: #fff1f2;
+  color: #e11d48;
+  border: 1px solid #fecdd3;
+}
+
+.btn-deactivate:hover {
+  background: #ffe4e6;
+  border-color: #fda4af;
+}
+
+.btn-activate {
+  background: #ecfdf5;
+  color: #059669;
+  border: 1px solid #a7f3d0;
+}
+
+.btn-activate:hover {
+  background: #d1fae5;
+  border-color: #6ee7b7;
+}
+
+.ent-delete-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.ent-delete-btn:hover {
+  background: #fee2e2;
+  border-color: #fca5a5;
+  color: #dc2626;
+}
+
+/* 5. Table Card View */
+.ent-table-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.04);
+}
+
+.ent-data-table {
+  width: 100%;
+}
+
+.ent-data-table tbody tr {
+  transition: background 0.15s ease;
+}
+
+.ent-data-table tbody tr:hover {
+  background: #f8fafc;
+}
+
+.row-deactivated {
+  opacity: 0.65;
+  background: #fafafa;
+}
+
+.ent-table-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+/* 6. Empty & Loading Cards */
+.ent-empty-card,
+.ent-loading-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 48px 24px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.03);
+}
+
+.empty-icon-wrap {
+  width: 64px;
+  height: 64px;
+  border-radius: 16px;
+  background: #f1f5f9;
+  color: #64748b;
+  display: grid;
+  place-items: center;
+}
+
+.ent-empty-card h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.ent-empty-card p {
+  margin: 0;
+  font-size: 13.5px;
+  color: #64748b;
+  max-width: 420px;
+}
+
+/* 7. Modal Overlay & Card */
+.ent-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.65);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: grid;
+  place-items: center;
+  z-index: 1000;
+  padding: 20px;
+}
+
+.ent-modal-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 20px;
+  width: min(540px, 100%);
+  padding: 28px;
+  box-shadow: 0 25px 60px rgba(15, 23, 42, 0.25);
+  position: relative;
+}
+
+.ent-modal-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  margin-bottom: 22px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.ent-modal-icon-badge {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #4f46e5, #7c3aed);
+  color: #ffffff;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
+}
+
+.ent-modal-title-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+
+.ent-modal-title-wrap h3 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 750;
+  color: #0f172a;
+  letter-spacing: -0.3px;
+}
+
+.ent-modal-title-wrap p {
+  margin: 0;
+  font-size: 12.5px;
+  color: #64748b;
+  line-height: 1.4;
+}
+
+.ent-modal-close-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: none;
+  background: #f1f5f9;
+  color: #64748b;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.ent-modal-close-btn:hover {
+  background: #fee2e2;
+  color: #ef4444;
+}
+
+.ent-modal-form {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.ent-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ent-form-label {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #334155;
+  letter-spacing: 0.2px;
+}
+
+.ent-form-input {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  border-radius: 10px;
+  font-size: 13.5px;
+  color: #0f172a;
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.ent-form-input:focus {
+  border-color: #4f46e5;
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
+}
+
+.ent-input-mono {
+  font-family: monospace;
+  font-size: 13px;
+}
+
+.ent-field-hint {
+  font-size: 11.5px;
+  color: #64748b;
+  line-height: 1.4;
+}
+
+.ent-password-input-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ent-input-relative {
+  position: relative;
+  flex: 1;
+}
+
+.ent-input-eye-btn {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  border: none;
+  background: none;
+  color: #94a3b8;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+}
+
+.ent-input-eye-btn:hover {
+  color: #334155;
+}
+
+.ent-btn-aux {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 40px;
+  padding: 0 12px;
+  font-size: 12px;
+  border-radius: 9px;
+  white-space: nowrap;
+}
+
+.ent-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  padding-top: 16px;
+  border-top: 1px solid #f1f5f9;
+}
+
+.ent-btn-submit {
+  height: 42px;
+  padding: 0 20px;
+  font-size: 13px;
+  border-radius: 10px;
+}
+
+/* 8. Enterprise Gateway Card (Login) */
+.ent-gateway-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 24px;
+  padding: 38px 34px;
+  box-shadow: 0 25px 60px rgba(15, 23, 42, 0.18);
+  width: 100%;
+}
+
+.ent-gateway-icon-badge {
+  width: 60px;
+  height: 60px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+  margin: 0 auto 14px auto;
+  display: grid;
+  place-items: center;
+  box-shadow: 0 8px 20px rgba(79, 70, 229, 0.35);
+}
+
+.ent-gateway-title {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: -0.5px;
+}
+
+.ent-gateway-subtitle {
+  margin: 6px 0 0 0;
+  font-size: 13px;
+  color: #64748b;
+  line-height: 1.4;
+}
+
+.ent-gateway-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.ent-creds-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ent-creds-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #4f46e5;
+  font-weight: 700;
+}
+
+.ent-creds-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ent-cred-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.cred-tag {
+  color: #64748b;
+  font-weight: 600;
+  width: 65px;
+}
+
+.cred-val {
+  font-family: monospace;
+  font-size: 12px;
+  background: #e2e8f0;
+  color: #0f172a;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.ent-gateway-submit-btn {
+  height: 46px;
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  box-shadow: 0 6px 18px rgba(79, 70, 229, 0.3);
+}
+
+/* ==========================================================================
+   DARK THEME COMPATIBILITY FOR CARD ARCHITECTURE
+   ========================================================================== */
+.app-shell.dark-theme .ent-header-card,
+.app-shell.dark-theme .ent-stat-card,
+.app-shell.dark-theme .ent-toolbar-card,
+.app-shell.dark-theme .ent-company-card,
+.app-shell.dark-theme .ent-table-card,
+.app-shell.dark-theme .ent-empty-card,
+.app-shell.dark-theme .ent-loading-card,
+.app-shell.dark-theme .ent-modal-card,
+.login-container.dark-theme .ent-gateway-card {
+  background: #18181b;
+  border-color: #27272a;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+}
+
+.app-shell.dark-theme .ent-title,
+.app-shell.dark-theme .ent-company-name,
+.app-shell.dark-theme .ent-modal-title-wrap h3,
+.app-shell.dark-theme .ent-empty-card h3,
+.app-shell.dark-theme .ent-table-name,
+.login-container.dark-theme .ent-gateway-title {
+  color: #f4f4f5;
+}
+
+.app-shell.dark-theme .ent-stat-value {
+  color: #ffffff;
+}
+
+.app-shell.dark-theme .ent-detail-box,
+.app-shell.dark-theme .ent-search-wrapper,
+.app-shell.dark-theme .ent-view-toggle,
+.login-container.dark-theme .ent-creds-card {
+  background: #27272a;
+  border-color: #3f3f46;
+}
+
+.app-shell.dark-theme .ent-form-input,
+.login-container.dark-theme .ent-form-input {
+  background: #27272a;
+  border-color: #3f3f46;
+  color: #f4f4f5;
+}
+
+.app-shell.dark-theme .ent-form-label,
+.login-container.dark-theme .ent-form-label {
+  color: #e4e4e7;
+}
+
+.app-shell.dark-theme .ent-email-text,
+.app-shell.dark-theme .ent-date-text,
+.app-shell.dark-theme .ent-search-input {
+  color: #e4e4e7;
+}
+
+.app-shell.dark-theme .ent-tenant-text,
+.login-container.dark-theme .cred-val {
+  background: #3f3f46;
+  color: #f4f4f5;
+}
+
+.app-shell.dark-theme .ent-icon-btn,
+.app-shell.dark-theme .ent-delete-btn {
+  background: #27272a;
+  border-color: #3f3f46;
+  color: #a1a1aa;
+}
+
+.app-shell.dark-theme .ent-modal-close-btn {
+  background: #27272a;
+  color: #a1a1aa;
+}
+
+.app-shell.dark-theme .ent-view-btn.active {
+  background: #3f3f46;
+  color: #ffffff;
+}
+

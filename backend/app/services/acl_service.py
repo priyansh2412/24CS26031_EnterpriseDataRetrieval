@@ -221,13 +221,30 @@ def verify_document_access(db: Session, user: User, document_id: str) -> bool:
     Final ACL authorization check in PostgreSQL:
     Resolves user's principals and verifies against document_acl_entries.
     """
-    role_val = user.role.value if hasattr(user.role, "value") else str(user.role or "employee").lower()
-    if role_val == "admin" or user.rank_level == 1:
-        return True
-
     doc = db.query(Document).filter(Document.id == document_id).first()
     if not doc:
         return False
+
+    # Privacy enforcement for temporary user documents:
+    # Strictly accessible ONLY to the user who uploaded it!
+    if doc.source == "temp_user":
+        user_email = user.email.strip().lower()
+        doc_owner = (doc.owner_email or "").strip().lower()
+        return doc_owner == user_email or str(doc.id).endswith(str(user.id).replace("-", ""))
+
+    # Privacy enforcement for temporary team documents:
+    # Strictly accessible ONLY to members of that team!
+    if doc.source == "temp_team":
+        try:
+            t_id = int(doc.project_id)
+            is_mem = db.query(TeamMember).filter(TeamMember.team_id == t_id, TeamMember.user_id == user.id).first()
+            return is_mem is not None or (doc.owner_email or "").strip().lower() == user.email.strip().lower()
+        except Exception:
+            return (doc.owner_email or "").strip().lower() == user.email.strip().lower()
+
+    role_val = user.role.value if hasattr(user.role, "value") else str(user.role or "employee").lower()
+    if role_val == "admin" or user.rank_level == 1:
+        return True
 
     # Check doc.denied_users JSON list first
     if doc.denied_users:
