@@ -4,6 +4,8 @@ interface User {
   id: string | number;
   email: string;
   role: string;
+  role_key?: string;
+  rank_level?: number;
 }
 
 interface DashboardPageProps {
@@ -12,9 +14,8 @@ interface DashboardPageProps {
 }
 
 export default function DashboardPage({ user, onNavigate }: DashboardPageProps) {
-  const roleName = (user?.role || "employee").toUpperCase();
-
-  const isRole = (roles: string[]) => roles.includes(user?.role || "employee");
+  const userRank = user?.rank_level ?? 5;
+  const isAdmin = user?.role === "admin" || userRank === 1;
 
   return (
     <div className="dashboard-page">
@@ -24,6 +25,7 @@ export default function DashboardPage({ user, onNavigate }: DashboardPageProps) 
       </div>
 
       <div className="dash-modules-grid">
+        {/* Module 1: AI Search Assistant (Both Admin & Employees) */}
         <div className="dash-module-card" onClick={() => onNavigate("/chat")}>
           <div className="module-icon icon-blue">
             <MessageSquare size={22} />
@@ -35,32 +37,58 @@ export default function DashboardPage({ user, onNavigate }: DashboardPageProps) 
           <ArrowRight size={16} className="card-arrow" />
         </div>
 
-        <div className="dash-module-card" onClick={() => onNavigate("/documents")}>
-          <div className="module-icon icon-indigo">
-            <FileText size={22} />
-          </div>
-          <div className="module-info">
-            <h4>Knowledge Library</h4>
-            <p>Access indexed enterprise files, manage role access, and generate summaries.</p>
-          </div>
-          <ArrowRight size={16} className="card-arrow" />
-        </div>
+        {/* Modules for Ranks other than 1 (Rank 2, 3, etc.) */}
+        {!isAdmin && (
+          <>
+            <div className="dash-module-card" onClick={() => onNavigate("/teams")}>
+              <div className="module-icon icon-purple">
+                <Users size={22} />
+              </div>
+              <div className="module-info">
+                <h4>Team Workspaces</h4>
+                <p>Collaborate with team members and share project knowledge sessions.</p>
+              </div>
+              <ArrowRight size={16} className="card-arrow" />
+            </div>
 
-        {isRole(["admin", "hr", "manager", "finance"]) && (
-          <div className="dash-module-card" onClick={() => onNavigate("/analytics")}>
-            <div className="module-icon icon-amber">
-              <BarChart3 size={22} />
+            <div className="dash-module-card" onClick={() => onNavigate("/profile")}>
+              <div className="module-icon icon-emerald">
+                <ShieldCheck size={22} />
+              </div>
+              <div className="module-info">
+                <h4>My Profile</h4>
+                <p>View your employee account details, current rank level, and security settings.</p>
+              </div>
+              <ArrowRight size={16} className="card-arrow" />
             </div>
-            <div className="module-info">
-              <h4>Usage & Insights</h4>
-              <p>Monitor document readiness, question volume, and search activity.</p>
-            </div>
-            <ArrowRight size={16} className="card-arrow" />
-          </div>
+          </>
         )}
 
-        {isRole(["admin"]) && (
+        {/* Modules strictly for Rank 1 (Admin) */}
+        {isAdmin && (
           <>
+            <div className="dash-module-card" onClick={() => onNavigate("/documents")}>
+              <div className="module-icon icon-indigo">
+                <FileText size={22} />
+              </div>
+              <div className="module-info">
+                <h4>Knowledge Library</h4>
+                <p>Access indexed enterprise files, connect Drive sources, and manage role access.</p>
+              </div>
+              <ArrowRight size={16} className="card-arrow" />
+            </div>
+
+            <div className="dash-module-card" onClick={() => onNavigate("/analytics")}>
+              <div className="module-icon icon-amber">
+                <BarChart3 size={22} />
+              </div>
+              <div className="module-info">
+                <h4>Usage & Insights</h4>
+                <p>Monitor document readiness, question volume, and search activity.</p>
+              </div>
+              <ArrowRight size={16} className="card-arrow" />
+            </div>
+
             <div className="dash-module-card" onClick={() => onNavigate("/users")}>
               <div className="module-icon icon-purple">
                 <Users size={22} />

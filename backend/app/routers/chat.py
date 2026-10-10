@@ -17,12 +17,69 @@ from app.schemas import (
     Source,
 )
 from app.services.access import log_access
+from app.services.acl_service import verify_document_access
 from app.services.citation_service import format_context_prompt
+from app.services.embedding_service import embed_text
 from app.services.llm import generate_answer
+from app.services.qdrant_service import search
 from app.services.rag_service import answer_question
 from app.services.retrieval_service import retrieve_authorized_chunks
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
+
+
+def check_document_payload_access(payload: dict, user: User, db: Session) -> bool:
+    """
+    Checks if a user has permission to access a document chunk based on Qdrant payload
+    (denied_principals, principal_keys) and database ACL rules.
+    Returns True if accessible, False if restricted/denied.
+    """
+    user_role = (user.role.value if hasattr(user.role, "value") else str(user.role or "employee")).lower()
+    if user_role == "admin" or user.rank_level == 1:
+        return True
+
+    # 1. Check explicit denied principals in Qdrant payload
+    denied = [str(x).strip().lower() for x in (payload.get("denied_principals") or [])]
+    user_email = user.email.strip().lower()
+    user_id_str = str(user.id).strip().lower()
+
+    if (
+        f"u:{user_email}" in denied
+        or user_email in denied
+        or f"u:{user_id_str}" in denied
+        or f"u:user-{user_id_str}" in denied
+    ):
+        return False
+
+    # 2. Check allowed principal keys in Qdrant payload
+    allowed = [str(x).strip().lower() for x in (payload.get("principal_keys") or [])]
+    user_role_k = (user.role_key or user_role).lower()
+
+    # Filter for role / user permissions (ignore tenant key t: which is tenant isolation only)
+    role_or_user_perms = [
+        k for k in allowed
+        if k == "*" or k.startswith("r:") or k.startswith("u:") or k.startswith("g:")
+    ]
+
+    if role_or_user_perms:
+        has_role_match = (
+            "*" in role_or_user_perms
+            or f"r:{user_role_k}" in role_or_user_perms
+            or f"r:{user_role}" in role_or_user_perms
+            or f"u:{user_email}" in role_or_user_perms
+            or f"u:{user_id_str}" in role_or_user_perms
+            or f"g:{user_role_k}" in role_or_user_perms
+        )
+        if not has_role_match:
+            return False
+
+    # 3. Check PostgreSQL ACL verification
+    doc_id = payload.get("document_id")
+    if doc_id:
+        if not verify_document_access(db, user, doc_id):
+            return False
+
+    return True
 
 
 @router.post("/ask", response_model=AskResponse)
@@ -33,15 +90,60 @@ def ask(
 ):
     """
     Session-aware chat endpoint:
-    1. Resolves user's principals (u:, g:, p:, r:, t: keys) scoped to enterprise tenant.
-    2. Searches enterprise's dedicated Qdrant collection filtered by tenant_id + matching principal_keys.
-    3. Performs PostgreSQL final ACL check.
-    4. Generates grounded answer with Gemini + citations.
-    5. Saves session conversation history in query_logs.
+    1. Checks Qdrant payload & ACL for accessibility of top-matching document.
+    2. If inaccessible/denied, replies 'sorry you can not access this information . '.
+    3. Otherwise retrieves authorized chunks, generates grounded answer, and saves session history.
     """
     eff_tenant = str(user.tenant_id or settings.default_tenant_id)
+    sess_id = (
+        payload.session_id.strip()
+        if payload.session_id and payload.session_id.strip()
+        else f"sess-{uuid.uuid4().hex[:12]}"
+    )
 
-    # 1. Retrieve authorized chunks strictly from user's enterprise tenant
+    # 1. Inspect Qdrant payload for accessibility before answering:
+    # Query Qdrant for top matching chunks across the collection without principal filtering
+    query_vector = embed_text(payload.question)
+    raw_points = search(
+        vector=query_vector,
+        limit=5,
+        tenant_id=eff_tenant,
+        principal_keys=None,
+        document_id=payload.document_id,
+    )
+
+    if raw_points:
+        top_pt = raw_points[0]
+        # If the top semantically relevant match has score >= 0.50
+        if (top_pt.score or 0) >= 0.50:
+            top_payload = top_pt.payload or {}
+            if not check_document_payload_access(top_payload, user, db):
+                denied_answer = "sorry you can not access this information . "
+                log = QueryLog(
+                    tenant_id=eff_tenant,
+                    user_id=user.id,
+                    team_id=payload.team_id,
+                    session_id=sess_id,
+                    query=payload.question,
+                    response=denied_answer,
+                    retrieved_document_ids="[]",
+                    citations_json="[]",
+                )
+                db.add(log)
+                db.commit()
+                db.refresh(log)
+
+                log_access(db, user, "ask:denied", "knowledge_base", str(log.id), f"Access denied to doc {top_payload.get('document_id')}")
+                db.commit()
+
+                return AskResponse(
+                    query_log_id=log.id,
+                    answer=denied_answer,
+                    citations=[],
+                    session_id=sess_id,
+                )
+
+    # 2. Retrieve authorized chunks strictly from user's enterprise tenant
     raw_chunks = retrieve_authorized_chunks(
         question=payload.question,
         db=db,
@@ -51,18 +153,35 @@ def ask(
         tenant_id=eff_tenant
     )
 
-    # 2. Format context & citations
+    # If raw_points had relevant content (score >= 0.50) but raw_chunks is empty due to ACL
+    if not raw_chunks and raw_points and (raw_points[0].score or 0) >= 0.50:
+        denied_answer = "sorry you can not access this information . "
+        log = QueryLog(
+            tenant_id=eff_tenant,
+            user_id=user.id,
+            team_id=payload.team_id,
+            session_id=sess_id,
+            query=payload.question,
+            response=denied_answer,
+            retrieved_document_ids="[]",
+            citations_json="[]",
+        )
+        db.add(log)
+        db.commit()
+        db.refresh(log)
+
+        return AskResponse(
+            query_log_id=log.id,
+            answer=denied_answer,
+            citations=[],
+            session_id=sess_id,
+        )
+
+    # 3. Format context & citations
     context_text, citations = format_context_prompt(raw_chunks)
 
-    # 3. Generate answer
+    # 4. Generate answer
     answer = generate_answer(payload.question, citations)
-
-    # 4. Handle session ID
-    sess_id = (
-        payload.session_id.strip()
-        if payload.session_id and payload.session_id.strip()
-        else f"sess-{uuid.uuid4().hex[:12]}"
-    )
 
     # 5. Save QueryLog scoped to tenant
     citations_data = [c.model_dump() for c in citations]

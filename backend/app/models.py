@@ -35,13 +35,6 @@ class LogSeverity(str, enum.Enum):
     CRITICAL = "CRITICAL"
 
 
-class SystemSetting(Base):
-    __tablename__ = "system_settings"
-    key: Mapped[str] = mapped_column(String(100), primary_key=True)
-    value: Mapped[str] = mapped_column(Text)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
-
-
 class CompanyRole(Base):
     __tablename__ = "company_roles"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -76,51 +69,6 @@ class User(Base):
     rank_level: Mapped[int] = mapped_column(Integer, default=5, index=True)
     created_by_id: Mapped[Any] = mapped_column(UUID(as_uuid=True), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-
-    group_memberships = relationship("GroupMember", back_populates="user", cascade="all, delete-orphan")
-
-
-class Group(Base):
-    __tablename__ = "groups"
-    id: Mapped[Any] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    tenant_id: Mapped[Any] = mapped_column(UUID(as_uuid=True), nullable=True)
-    name: Mapped[str] = mapped_column(String(100), unique=True, index=True)
-    key: Mapped[str | None] = mapped_column(String(50), unique=True, index=True, nullable=True)
-    description: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-
-    members = relationship("GroupMember", back_populates="group", cascade="all, delete-orphan")
-
-
-class GroupMember(Base):
-    __tablename__ = "group_members"
-    id: Mapped[Any] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    tenant_id: Mapped[Any] = mapped_column(UUID(as_uuid=True), nullable=True)
-    group_id: Mapped[Any] = mapped_column(ForeignKey("groups.id", ondelete="CASCADE"), index=True)
-    user_id: Mapped[Any] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-
-    group = relationship("Group", back_populates="members")
-    user = relationship("User", back_populates="group_memberships")
-
-
-class UserGroupClosure(Base):
-    __tablename__ = "user_group_closure"
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    user_id: Mapped[Any] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
-    group_id: Mapped[Any] = mapped_column(ForeignKey("groups.id", ondelete="CASCADE"), index=True)
-    depth: Mapped[int] = mapped_column(Integer, default=0)
-
-
-class RoleAssignment(Base):
-    __tablename__ = "role_assignments"
-    id: Mapped[Any] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    tenant_id: Mapped[Any] = mapped_column(UUID(as_uuid=True), nullable=True)
-    user_id: Mapped[Any] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
-    role_key: Mapped[str] = mapped_column(String(50), index=True)
-    scope_type: Mapped[str] = mapped_column(String(50), default="tenant")
-    scope_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
 
