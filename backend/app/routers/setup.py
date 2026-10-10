@@ -2,7 +2,7 @@ import json
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app.core.database import get_db
-from app.core.security import hash_password
+from app.core.security import get_current_user, hash_password
 from app.models import AuditLog, CompanyRole, LogSeverity, Role, SystemSetting, User
 from app.schemas import CompanyRoleSchema, SetupStatusOut, SystemSetupInit
 
@@ -36,6 +36,99 @@ def list_company_roles(db: Session = Depends(get_db)):
             permissions=perms
         ))
     return out
+
+
+@router.post("/roles", response_model=CompanyRoleSchema)
+def save_company_role(
+    payload: CompanyRoleSchema,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Add or update a role in the company hierarchy."""
+    curr_role = current_user.role.value if hasattr(current_user.role, "value") else str(current_user.role or "employee")
+    if curr_role != "admin" and current_user.rank_level > 2:
+        raise HTTPException(status_code=403, detail="Access restricted to workspace administrators.")
+
+    perms_json = json.dumps(payload.permissions)
+    clean_key = payload.key.strip().lower().replace(" ", "_")
+
+    if payload.id:
+        role = db.get(CompanyRole, payload.id)
+        if not role:
+            raise HTTPException(status_code=404, detail="Role not found")
+        role.name = payload.name.strip()
+        role.key = clean_key
+        role.rank_level = payload.rank_level
+        role.description = payload.description
+        role.permissions_json = perms_json
+    else:
+        existing = db.query(CompanyRole).filter((CompanyRole.key == clean_key) | (CompanyRole.name == payload.name.strip())).first()
+        if existing:
+            existing.name = payload.name.strip()
+            existing.rank_level = payload.rank_level
+            existing.description = payload.description
+            existing.permissions_json = perms_json
+            role = existing
+        else:
+            role = CompanyRole(
+                name=payload.name.strip(),
+                key=clean_key,
+                rank_level=payload.rank_level,
+                description=payload.description,
+                permissions_json=perms_json
+            )
+            db.add(role)
+
+    db.add(AuditLog(
+        user_id=current_user.id,
+        action="update_hierarchy_role",
+        resource_type="company_role",
+        resource_id=clean_key,
+        severity=LogSeverity.INFO,
+        detail=f"Updated role '{role.name}' (Rank Level {role.rank_level})"
+    ))
+    db.commit()
+    db.refresh(role)
+
+    return CompanyRoleSchema(
+        id=role.id,
+        name=role.name,
+        key=role.key,
+        rank_level=role.rank_level,
+        description=role.description,
+        permissions=json.loads(role.permissions_json or "[]")
+    )
+
+
+@router.delete("/roles/{role_id}")
+def delete_company_role(
+    role_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Remove a custom company role from the hierarchy."""
+    curr_role = current_user.role.value if hasattr(current_user.role, "value") else str(current_user.role or "employee")
+    if curr_role != "admin" and current_user.rank_level > 2:
+        raise HTTPException(status_code=403, detail="Access restricted to workspace administrators.")
+
+    role = db.get(CompanyRole, role_id)
+    if not role:
+        raise HTTPException(status_code=404, detail="Role not found")
+
+    if role.key in ["admin", "employee"]:
+        raise HTTPException(status_code=400, detail="Cannot delete core system role.")
+
+    db.delete(role)
+    db.add(AuditLog(
+        user_id=current_user.id,
+        action="delete_hierarchy_role",
+        resource_type="company_role",
+        resource_id=str(role.id),
+        severity=LogSeverity.WARNING,
+        detail=f"Removed role '{role.name}' from hierarchy."
+    ))
+    db.commit()
+    return {"status": "success", "message": f"Role '{role.name}' deleted."}
 
 
 @router.post("/initialize", response_model=SetupStatusOut)

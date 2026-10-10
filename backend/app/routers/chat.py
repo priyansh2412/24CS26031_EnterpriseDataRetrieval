@@ -3,6 +3,7 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.database import get_db
 from app.core.security import current_user
 from app.models import Document, Feedback, QueryLog, User
@@ -32,19 +33,22 @@ def ask(
 ):
     """
     Session-aware chat endpoint:
-    1. Resolves user's principals (u:, g:, p:, r:, t: keys).
-    2. Searches Qdrant filtered by tenant_id + matching principal_keys.
+    1. Resolves user's principals (u:, g:, p:, r:, t: keys) scoped to enterprise tenant.
+    2. Searches enterprise's dedicated Qdrant collection filtered by tenant_id + matching principal_keys.
     3. Performs PostgreSQL final ACL check.
     4. Generates grounded answer with Gemini + citations.
     5. Saves session conversation history in query_logs.
     """
-    # 1. Retrieve authorized chunks
+    eff_tenant = str(user.tenant_id or settings.default_tenant_id)
+
+    # 1. Retrieve authorized chunks strictly from user's enterprise tenant
     raw_chunks = retrieve_authorized_chunks(
         question=payload.question,
         db=db,
         user=user,
         top_k=payload.top_k,
         document_id=payload.document_id,
+        tenant_id=eff_tenant
     )
 
     # 2. Format context & citations
@@ -60,9 +64,10 @@ def ask(
         else f"sess-{uuid.uuid4().hex[:12]}"
     )
 
-    # 5. Save QueryLog
+    # 5. Save QueryLog scoped to tenant
     citations_data = [c.model_dump() for c in citations]
     log = QueryLog(
+        tenant_id=eff_tenant,
         user_id=user.id,
         team_id=payload.team_id,
         session_id=sess_id,
@@ -124,10 +129,14 @@ def get_chat_sessions(
     db: Session = Depends(get_db),
     user: User = Depends(current_user)
 ):
-    """Fetch past chat sessions for current user."""
+    """Fetch past chat sessions for current user within their enterprise tenant."""
+    eff_tenant = str(user.tenant_id or settings.default_tenant_id)
     logs = (
         db.query(QueryLog)
-        .filter(QueryLog.user_id == user.id)
+        .filter(
+            QueryLog.user_id == user.id,
+            (QueryLog.tenant_id == eff_tenant) | (QueryLog.tenant_id.is_(None))
+        )
         .order_by(QueryLog.created_at.desc())
         .all()
     )
@@ -154,7 +163,11 @@ def get_chat_history(
     user: User = Depends(current_user)
 ):
     """Fetch full chat history for a session or user."""
-    query = db.query(QueryLog).filter(QueryLog.user_id == user.id)
+    eff_tenant = str(user.tenant_id or settings.default_tenant_id)
+    query = db.query(QueryLog).filter(
+        QueryLog.user_id == user.id,
+        (QueryLog.tenant_id == eff_tenant) | (QueryLog.tenant_id.is_(None))
+    )
     if session_id:
         query = query.filter(QueryLog.session_id == session_id)
     logs = query.order_by(QueryLog.id.asc()).all()
@@ -202,9 +215,11 @@ def delete_chat_session(
     db: Session = Depends(get_db),
     user: User = Depends(current_user)
 ):
+    eff_tenant = str(user.tenant_id or settings.default_tenant_id)
     db.query(QueryLog).filter(
         QueryLog.user_id == user.id,
-        QueryLog.session_id == session_id
+        QueryLog.session_id == session_id,
+        (QueryLog.tenant_id == eff_tenant) | (QueryLog.tenant_id.is_(None))
     ).delete()
     db.commit()
     return {"status": "session_deleted"}
@@ -215,6 +230,10 @@ def clear_chat_history(
     db: Session = Depends(get_db),
     user: User = Depends(current_user)
 ):
-    db.query(QueryLog).filter(QueryLog.user_id == user.id).delete()
+    eff_tenant = str(user.tenant_id or settings.default_tenant_id)
+    db.query(QueryLog).filter(
+        QueryLog.user_id == user.id,
+        (QueryLog.tenant_id == eff_tenant) | (QueryLog.tenant_id.is_(None))
+    ).delete()
     db.commit()
     return {"status": "cleared"}
