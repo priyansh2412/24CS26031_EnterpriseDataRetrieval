@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     gemini_api_key: str = ""
     embedding_model: str = "gemini-embedding-2"
     embedding_dimension: int = 768
-    gemini_model: str = "gemini-3-flash-preview"
+    gemini_model: str = "gemini-3.5-flash"
 
     # Retrieval parameters
     top_k: int = 8
@@ -50,9 +50,14 @@ class Settings(BaseSettings):
     default_tenant_id: str = "tenant-001"
     default_project_id: str = "project-001"
 
+    # WhatsApp Gateway Configuration
+    whatsapp_bot_number: str = ""
+    whatsapp_gateway_secret: str = ""
+
     # Optional third-party providers
     groq_api_key: str | None = None
     openai_api_key: str | None = None
+
 
     @property
     def data_path(self) -> Path:

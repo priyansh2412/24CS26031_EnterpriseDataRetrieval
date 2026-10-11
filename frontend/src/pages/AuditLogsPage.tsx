@@ -141,6 +141,7 @@ export default function AuditLogsPage() {
             <thead>
               <tr>
                 <th>Timestamp</th>
+                <th>Channel</th>
                 <th>Severity</th>
                 <th>User & Role Rank</th>
                 <th>Action</th>
@@ -151,7 +152,7 @@ export default function AuditLogsPage() {
             <tbody>
               {filteredLogs.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="empty-table-cell">
+                  <td colSpan={7} className="empty-table-cell">
                     No matching audit logs found for your subordinate access level.
                   </td>
                 </tr>
@@ -163,6 +164,11 @@ export default function AuditLogsPage() {
                         <Calendar size={13} />
                         <span>{new Date(log.created_at).toLocaleString()}</span>
                       </div>
+                    </td>
+                    <td>
+                      <span className={`channel-badge ${log.channel === "whatsapp" ? "whatsapp" : "web"}`}>
+                        {log.channel === "whatsapp" ? "WhatsApp" : "Web"}
+                      </span>
                     </td>
                     <td>{getSeverityBadge(log.severity)}</td>
                     <td>

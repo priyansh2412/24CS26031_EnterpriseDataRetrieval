@@ -267,6 +267,7 @@ class QueryLog(Base):
     response: Mapped[str] = mapped_column(Text)
     retrieved_document_ids: Mapped[str] = mapped_column(Text, default="[]")
     citations_json: Mapped[str | None] = mapped_column(Text, nullable=True, default="[]")
+    channel: Mapped[str] = mapped_column(String(20), default="web", server_default="web", nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
 
@@ -290,6 +291,7 @@ class AuditLog(Base):
     resource_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
     severity: Mapped[str] = mapped_column(String(20), default="INFO", index=True)
     detail: Mapped[str | None] = mapped_column(Text, nullable=True)
+    channel: Mapped[str] = mapped_column(String(20), default="web", server_default="web", nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), index=True)
 
 
@@ -338,3 +340,32 @@ class EnterpriseAdmin(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
 
     user = relationship("User", foreign_keys=[user_id])
+
+
+class UserPhoneLink(Base):
+    __tablename__ = "user_phone_links"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[Any] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    tenant_id: Mapped[Any] = mapped_column(UUID(as_uuid=True), nullable=True, index=True)
+    wa_jid: Mapped[str] = mapped_column(String(100), unique=True, index=True)
+    wa_display_name: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    status: Mapped[str] = mapped_column(String(20), default="active")  # "active" or "revoked"
+    verified_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    user = relationship("User", foreign_keys=[user_id])
+
+
+class WhatsAppLinkCode(Base):
+    __tablename__ = "whatsapp_link_codes"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[Any] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    tenant_id: Mapped[Any] = mapped_column(UUID(as_uuid=True), nullable=True)
+    code_hash: Mapped[str] = mapped_column(String(64), index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    user = relationship("User", foreign_keys=[user_id])
+

@@ -96,6 +96,7 @@ class AuditLogOut(BaseModel):
     resource_id: str | None = None
     severity: str = "INFO"
     detail: str | None = None
+    channel: str | None = "web"
     created_at: datetime
     class Config: from_attributes = True
 

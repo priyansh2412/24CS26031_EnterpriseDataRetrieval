@@ -469,6 +469,12 @@ button:disabled {
   border: 1px solid #86efac;
 }
 
+.alert-banner.info {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+}
+
 .margin-bottom {
   margin-bottom: 20px;
 }
@@ -4292,3 +4298,106 @@ button:disabled {
   color: #f87171;
   background: #450a0a;
 }
+
+/* ==========================================================================
+   WHATSAPP & CHANNEL BADGES & LINKED DEVICES
+   ========================================================================== */
+
+.channel-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.channel-badge.web {
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+}
+
+.channel-badge.whatsapp {
+  background: #dcfce7;
+  color: #15803d;
+  border: 1px solid #86efac;
+}
+
+.pulse-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.pulse-dot.green {
+  background: #22c55e;
+  box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7);
+  animation: pulse-green 2s infinite;
+}
+
+.pulse-dot.blue {
+  background: #3b82f6;
+  box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7);
+  animation: pulse-blue 2s infinite;
+}
+
+@keyframes pulse-green {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7);
+  }
+  70% {
+    transform: scale(1);
+    box-shadow: 0 0 0 6px rgba(34, 197, 94, 0);
+  }
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0);
+  }
+}
+
+@keyframes pulse-blue {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7);
+  }
+  70% {
+    transform: scale(1);
+    box-shadow: 0 0 0 6px rgba(59, 130, 246, 0);
+  }
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0);
+  }
+}
+
+/* Dark Theme Overrides for Linked Devices */
+.app-shell.dark-theme .channel-badge.web {
+  background: #1e293b;
+  color: #94a3b8;
+  border-color: #334155;
+}
+
+.app-shell.dark-theme .channel-badge.whatsapp {
+  background: #052e16;
+  color: #4ade80;
+  border-color: #166534;
+}
+
+.app-shell.dark-theme .command-tile {
+  background: #141414 !important;
+  border-color: #262626 !important;
+}
+
+.app-shell.dark-theme .link-code-container {
+  background: #091712 !important;
+  border-color: #166534 !important;
+}
+
+.app-shell.dark-theme .big-link-code {
+  color: #4ade80 !important;
+}

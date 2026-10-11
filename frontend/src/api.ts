@@ -55,6 +55,7 @@ export interface AuditLogItem {
   resource_id: string | null;
   severity: "INFO" | "WARNING" | "ERROR" | "CRITICAL";
   detail: string | null;
+  channel?: string | null;
   created_at: string;
 }
 
@@ -229,4 +230,41 @@ export async function forgotPassword(email: string): Promise<{ message: string }
     body: JSON.stringify({ email: email.trim() }),
   });
 }
+
+export interface WhatsAppLinkStartResponse {
+  code: string;
+  expires_at: string;
+  bot_number: string;
+  instruction: string;
+}
+
+export interface WhatsAppLinkStatusResponse {
+  linked: boolean;
+  wa_display_name?: string | null;
+  verified_at?: string | null;
+  pending_code_expires_at?: string | null;
+}
+
+export interface WhatsAppUnlinkResponse {
+  ok: boolean;
+}
+
+export async function linkStart(): Promise<WhatsAppLinkStartResponse> {
+  return request<WhatsAppLinkStartResponse>("/api/whatsapp/link/start", {
+    method: "POST",
+  });
+}
+
+export async function linkStatus(): Promise<WhatsAppLinkStatusResponse> {
+  return request<WhatsAppLinkStatusResponse>("/api/whatsapp/link/status", {
+    method: "GET",
+  });
+}
+
+export async function linkDelete(): Promise<WhatsAppUnlinkResponse> {
+  return request<WhatsAppUnlinkResponse>("/api/whatsapp/link", {
+    method: "DELETE",
+  });
+}
+
 

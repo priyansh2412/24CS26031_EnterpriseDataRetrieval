@@ -18,7 +18,7 @@ from app.core.database import (
     init_db,
 )
 from app.core.security import hash_password
-from app.models import CompanyRole, Role, User
+from app.models import CompanyRole, Role, User, UserPhoneLink, WhatsAppLinkCode
 from app.routers import (
     analytics,
     audit,
@@ -33,7 +33,9 @@ from app.routers import (
     sources,
     teams,
     users,
+    whatsapp,
 )
+
 from app.services.ingestion_service import auto_ingest_all_sources
 from app.services.qdrant_service import ensure_collection, get_qdrant_client
 
@@ -158,6 +160,11 @@ app.include_router(users.router)
 app.include_router(audit.router)
 app.include_router(teams.router)
 app.include_router(enterprises.router)
+app.include_router(whatsapp.router)
+app.include_router(whatsapp.internal_router)
+
+
+
 
 
 @app.get("/api/status")

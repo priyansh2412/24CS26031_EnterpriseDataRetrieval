@@ -14,6 +14,7 @@ import {
   Moon,
   FolderKanban,
   UserCheck,
+  MessageCircle,
 } from "lucide-react";
 import ChatPage from "./pages/ChatPage";
 import DocumentsPage from "./pages/DocumentsPage";
@@ -26,6 +27,7 @@ import SettingsPage from "./pages/SettingsPage";
 import SetupWizardPage from "./pages/SetupWizardPage";
 import TeamsPage from "./pages/TeamsPage";
 import ProfilePage from "./pages/ProfilePage";
+import LinkedDevicesPage from "./pages/LinkedDevicesPage";
 import SystemEnterprisePortal from "./pages/SystemEnterprisePortal";
 import { SetupStatus, UserProfile, request, token } from "./api";
 
@@ -46,6 +48,7 @@ const NAV_ITEMS: NavRoute[] = [
   { id: "analytics", path: "/analytics", label: "Analytics & Insights", icon: BarChart3, roles: ["admin", "hr", "manager", "finance"] },
   { id: "users", path: "/users", label: "User Management", icon: Users },
   { id: "audit-logs", path: "/audit-logs", label: "Hierarchical Audit Logs", icon: Activity },
+  { id: "linked-devices", path: "/linked-devices", label: "Linked Devices", icon: MessageCircle },
   { id: "settings", path: "/settings", label: "Workspace Settings", icon: Settings },
   { id: "profile", path: "/profile", label: "Admin Profile", icon: UserCheck },
 ];
@@ -299,6 +302,8 @@ export default function App() {
           {currentPath === "/users" && <UserManagementPage currentUser={user} />}
 
           {currentPath === "/audit-logs" && <AuditLogsPage />}
+
+          {currentPath === "/linked-devices" && isAuthorized && <LinkedDevicesPage />}
 
           {currentPath === "/settings" && <SettingsPage user={user} />}
 

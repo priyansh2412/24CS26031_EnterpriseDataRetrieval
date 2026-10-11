@@ -35,18 +35,22 @@ def log_access(
     action: str,
     resource_type: str,
     resource_id: str | None = None,
-    detail: str | None = None
+    detail: str | None = None,
+    channel: str = "web"
 ) -> None:
     try:
         db.add(
             AuditLog(
                 user_id=user.id if user else None,
+                tenant_id=user.tenant_id if user and hasattr(user, "tenant_id") else None,
                 action=action,
                 resource_type=resource_type,
                 resource_id=resource_id,
                 severity="INFO",
-                detail=detail
+                detail=detail,
+                channel=channel
             )
         )
     except Exception as e:
         print(f"Audit log warning: {e}")
+

@@ -1,0 +1,26 @@
+================================================================================
+            ATLAS ENTERPRISE - EXECUTIVE COMPENSATION PLAN 2026
+================================================================================
+Document Reference: EXEC-COMP-2026-CONFIDENTIAL
+Classification: STRICTLY CONFIDENTIAL - EXECUTIVE & FINANCE BOARD ONLY
+Effective Date: January 1, 2026
+
+1. EXECUTIVE LEADERSHIP COMPENSATION OVERVIEW
+This document outlines the executive compensation package, base salaries, performance bonuses, and long-term equity incentives approved by the Atlas Enterprise Compensation Committee for FY2026.
+
+2. C-SUITE BASE SALARY AND ANNUAL INCENTIVE SCHEDULE
+
+Role                     Name               Base Salary      Target Bonus (%)   Annual Bonus ($)   Equity Grant ($)
+---------------------------------------------------------------------------------------------------------------------
+Chief Executive Officer  Alexander Vance    $850,000         100%               $850,000           $1,500,000
+Chief Financial Officer  Eleanor Sterling   $520,000          75%               $390,000             $800,000
+Chief Technology Officer Marcus Reed        $540,000          75%               $405,000             $850,000
+Chief Operating Officer  Sarah Jenkins      $480,000          60%               $288,000             $600,000
+
+3. CEO COMPENSATION SUMMARY
+- The CEO's base salary is $850,000 per annum.
+- The CEO's target annual bonus is 100% of base salary ($850,000), contingent upon meeting enterprise ARR and EBITDA targets.
+- Total direct cash compensation for the CEO is $1,700,000 with a total target compensation of $3,200,000 including equity grants.
+
+4. ACCESS AND CONFIDENTIALITY RESTRICTIONS
+Access to this document is strictly restricted to Corporate Board Administrators and the Finance Department. Unauthorized access or dissemination will result in immediate termination and legal action.

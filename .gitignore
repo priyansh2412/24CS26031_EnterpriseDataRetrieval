@@ -2,6 +2,9 @@
 .env
 .env.*
 !.env.example
+auth_state/
+**/auth_state/
+
 
 # Python virtual environment
 venv/
@@ -41,6 +44,11 @@ out/
 backend/rag.db
 chroma_db/
 .chroma/
+qdrant_storage/
+**/qdrant_storage/
+backend/data/incoming/
+**/incoming/
+
 
 # Operating System files
 .DS_Store

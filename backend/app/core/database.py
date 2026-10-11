@@ -73,7 +73,9 @@ def fetch_all(sql: str, params: dict | None = None):
 
 def init_db():
     """Create all database tables if they do not exist."""
+    import app.models  # noqa: F401
     Base.metadata.create_all(bind=engine)
+
 
 
 def apply_compatible_migrations() -> None:
@@ -103,15 +105,35 @@ def apply_compatible_migrations() -> None:
                     connection.execute(text("ALTER TABLE documents ADD COLUMN revision_id VARCHAR(128)"))
                 if "owner_email" not in columns:
                     connection.execute(text("ALTER TABLE documents ADD COLUMN owner_email VARCHAR(255)"))
+                if "folder_path" not in columns:
+                    connection.execute(text("ALTER TABLE documents ADD COLUMN folder_path VARCHAR(512) DEFAULT '/'"))
+                if "drive_link_id" not in columns:
+                    connection.execute(text("ALTER TABLE documents ADD COLUMN drive_link_id INTEGER NULL"))
+                if "denied_users" not in columns:
+                    connection.execute(text("ALTER TABLE documents ADD COLUMN denied_users TEXT DEFAULT '[]'"))
+
+            if "teams" in table_names:
+                team_columns = {column["name"] for column in inspector.get_columns("teams")}
+                if "tenant_id" not in team_columns:
+                    connection.execute(text("ALTER TABLE teams ADD COLUMN tenant_id VARCHAR(64) DEFAULT 'tenant-001'"))
+                if "project_name" not in team_columns:
+                    connection.execute(text("ALTER TABLE teams ADD COLUMN project_name VARCHAR(150) DEFAULT 'General'"))
 
             if "query_logs" in table_names:
                 log_columns = {column["name"] for column in inspector.get_columns("query_logs")}
+                if "tenant_id" not in log_columns:
+                    connection.execute(text("ALTER TABLE query_logs ADD COLUMN tenant_id VARCHAR(64) DEFAULT 'tenant-001'"))
+                if "user_id" not in log_columns:
+                    connection.execute(text("ALTER TABLE query_logs ADD COLUMN user_id VARCHAR(36) NULL"))
                 if "citations_json" not in log_columns:
                     connection.execute(text("ALTER TABLE query_logs ADD COLUMN citations_json TEXT DEFAULT '[]'"))
                 if "team_id" not in log_columns:
                     connection.execute(text("ALTER TABLE query_logs ADD COLUMN team_id INTEGER NULL"))
                 if "session_id" not in log_columns:
                     connection.execute(text("ALTER TABLE query_logs ADD COLUMN session_id VARCHAR(100) NULL"))
+                if "channel" not in log_columns:
+                    connection.execute(text("ALTER TABLE query_logs ADD COLUMN channel VARCHAR(20) NOT NULL DEFAULT 'web'"))
+
 
             if "users" in table_names:
                 user_columns = {column["name"] for column in inspector.get_columns("users")}
@@ -121,10 +143,18 @@ def apply_compatible_migrations() -> None:
                     connection.execute(text("ALTER TABLE users ADD COLUMN rank_level INTEGER DEFAULT 5"))
                 if "created_by_id" not in user_columns:
                     connection.execute(text("ALTER TABLE users ADD COLUMN created_by_id INTEGER NULL"))
+                if "display_name" not in user_columns:
+                    connection.execute(text("ALTER TABLE users ADD COLUMN display_name VARCHAR(255) NULL"))
 
             if "audit_logs" in table_names:
                 audit_columns = {column["name"] for column in inspector.get_columns("audit_logs")}
                 if "severity" not in audit_columns:
                     connection.execute(text("ALTER TABLE audit_logs ADD COLUMN severity VARCHAR(20) DEFAULT 'INFO'"))
+                if "channel" not in audit_columns:
+                    connection.execute(text("ALTER TABLE audit_logs ADD COLUMN channel VARCHAR(20) NOT NULL DEFAULT 'web'"))
+                if "tenant_id" not in audit_columns:
+                    connection.execute(text("ALTER TABLE audit_logs ADD COLUMN tenant_id VARCHAR(36) NULL"))
+
+
     except Exception as e:
         print(f"Migration notice: {e}")
