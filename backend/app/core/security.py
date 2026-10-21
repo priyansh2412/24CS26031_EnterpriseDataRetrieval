@@ -10,26 +10,22 @@ from app.core.database import get_db
 from app.models import Role, User
 from app.services.access import has_permission
 
-try:
-    import bcrypt
+import bcrypt
 
-    def hash_password(value: str) -> str:
-        salt = bcrypt.gensalt()
-        return bcrypt.hashpw(value.encode("utf-8"), salt).decode("utf-8")
 
-    def verify_password(value: str, hashed: str) -> bool:
-        if not value or not hashed:
-            return False
-        try:
-            return bcrypt.checkpw(value.encode("utf-8"), hashed.encode("utf-8"))
-        except Exception:
-            return False
+def hash_password(value: str) -> str:
+    salt = bcrypt.gensalt()
+    return bcrypt.hashpw(value.encode("utf-8"), salt).decode("utf-8")
 
-except ImportError:
-    from passlib.context import CryptContext
-    pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-    def hash_password(value: str) -> str: return pwd_context.hash(value)
-    def verify_password(value: str, hashed: str) -> bool: return pwd_context.verify(value, hashed)
+
+def verify_password(value: str, hashed: str) -> bool:
+    if not value or not hashed:
+        return False
+    try:
+        return bcrypt.checkpw(value.encode("utf-8"), hashed.encode("utf-8"))
+    except Exception:
+        return False
+
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
