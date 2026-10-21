@@ -7,13 +7,7 @@ import {
   ArrowRight,
   CheckCircle2,
   AlertCircle,
-  Sparkles,
-  UserCheck,
   Lock,
-  Zap,
-  FileCheck,
-  Activity,
-  Layers,
 } from "lucide-react";
 import { forgotPassword, login } from "../api";
 
@@ -22,8 +16,8 @@ interface LoginPageProps {
 }
 
 export default function LoginPage({ onSuccess }: LoginPageProps) {
-  const [email, setEmail] = useState("admin@example.com");
-  const [password, setPassword] = useState("AdminPass123!");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -34,13 +28,6 @@ export default function LoginPage({ onSuccess }: LoginPageProps) {
   const [forgotLoading, setForgotLoading] = useState(false);
   const [forgotMessage, setForgotMessage] = useState("");
   const [forgotError, setForgotError] = useState("");
-
-  const presets = [
-    { label: "Admin", email: "admin@example.com", pass: "AdminPass123!", role: "admin", icon: ShieldCheck, desc: "All modules & settings" },
-    { label: "HR Manager", email: "hr@example.com", pass: "HrPass123!", role: "hr", icon: UserCheck, desc: "HR Portal & Docs" },
-    { label: "Manager", email: "manager@example.com", pass: "ManagerPass123!", role: "manager", icon: Activity, desc: "Analytics & Search" },
-    { label: "Employee", email: "employee@example.com", pass: "EmployeePass123!", role: "employee", icon: Layers, desc: "Search & Handbook" },
-  ];
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -71,21 +58,15 @@ export default function LoginPage({ onSuccess }: LoginPageProps) {
     }
   };
 
-  const applyPreset = (p: typeof presets[0]) => {
-    setEmail(p.email);
-    setPassword(p.pass);
-    setError("");
-  };
-
   return (
     <main className="login-container">
       {/* Decorative ambient background mesh */}
       <div className="ambient-mesh-glow" />
 
-      <div className="login-card-wrapper">
-        {/* Visual Brand Hero Panel */}
-        <div className="login-brand-panel">
-          <div className="brand-header">
+      <div className="login-card-wrapper single-panel">
+        {/* Login Form Panel */}
+        <div className="login-form-panel">
+          <div className="brand-header" style={{ marginBottom: "24px", justifyContent: "center" }}>
             <div className="brand-badge glow-effect">
               <ShieldCheck size={26} />
             </div>
@@ -95,61 +76,6 @@ export default function LoginPage({ onSuccess }: LoginPageProps) {
             </div>
           </div>
 
-          <div className="login-hero-copy">
-            <div className="hero-tag pulse-tag">
-              <Zap size={14} /> GROUNDED DATA RETRIEVAL
-            </div>
-            <h1>Empowering decision-making with trusted data.</h1>
-            <p>
-              Access company policies, employee handbooks, and enterprise analytics
-              grounded directly on your organization's internal knowledge base.
-            </p>
-
-            <div className="hero-feature-list">
-              <div className="feature-item">
-                <FileCheck size={16} />
-                <span>Citation-First AI Search</span>
-              </div>
-              <div className="feature-item">
-                <ShieldCheck size={16} />
-                <span>Fine-Grained RBAC Permissions</span>
-              </div>
-              <div className="feature-item">
-                <Activity size={16} />
-                <span>Real-Time Security Audit Logs</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="login-preset-box">
-            <div className="preset-label">
-              <UserCheck size={14} /> SELECT EXISTING DB ACCOUNT FOR QUICK LOGIN
-            </div>
-            <div className="preset-pills">
-              {presets.map((p) => {
-                const Icon = p.icon;
-                const isActive = email === p.email;
-                return (
-                  <button
-                    key={p.role}
-                    type="button"
-                    className={`preset-pill ${isActive ? "active" : ""}`}
-                    onClick={() => applyPreset(p)}
-                  >
-                    <Icon size={16} className={`role-icon ${p.role}`} />
-                    <div className="preset-text">
-                      <strong>{p.label}</strong>
-                      <small>{p.desc}</small>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-
-        {/* Login Form Panel */}
-        <div className="login-form-panel">
           <form onSubmit={handleLogin} className="login-form">
             <div className="form-header">
               <div className="form-header-badge">

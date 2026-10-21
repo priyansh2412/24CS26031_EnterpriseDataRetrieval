@@ -19,8 +19,11 @@ import {
   MessageSquare,
   History,
   Trash2,
+  Paperclip,
+  Upload,
+  Loader2,
 } from "lucide-react";
-import { request } from "../api";
+import { TempDocItem, request } from "../api";
 
 export type Citation = { document_id: number; document_name: string; chunk_index: number; text: string; score: number };
 
@@ -71,9 +74,60 @@ export default function ChatPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [activeMatchIndex, setActiveMatchIndex] = useState(0);
 
+  // Temporary Document State (Scoped to current user's session only)
+  const [tempDocs, setTempDocs] = useState<TempDocItem[]>([]);
+  const [uploadingDoc, setUploadingDoc] = useState(false);
+  const [uploadNotice, setUploadNotice] = useState("");
+
   const chatEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const msgRefs = useRef<{ [id: string]: HTMLDivElement | null }>({});
+
+  const fetchTempDocs = async () => {
+    try {
+      const docs = await request<TempDocItem[]>("/api/chat/temp-docs");
+      setTempDocs(docs || []);
+    } catch {
+      setTempDocs([]);
+    }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingDoc(true);
+    setError("");
+    setUploadNotice("");
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      if (activeSessionId) {
+        formData.append("session_id", activeSessionId);
+      }
+      await request<TempDocItem>("/api/chat/upload-temp", {
+        method: "POST",
+        body: formData,
+      });
+      setUploadNotice(`"${file.name}" ingested into temporary Qdrant vectors! You can now ask questions about it.`);
+      await fetchTempDocs();
+    } catch (err) {
+      setError((err as Error).message || "Failed to upload document");
+    } finally {
+      setUploadingDoc(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const handleDeleteTempDoc = async (docId: string) => {
+    try {
+      await request(`/api/chat/temp-docs/${encodeURIComponent(docId)}`, { method: "DELETE" });
+      setTempDocs((prev) => prev.filter((d) => d.document_id !== docId));
+      setUploadNotice("");
+    } catch (err) {
+      setError((err as Error).message || "Failed to remove temporary document");
+    }
+  };
 
   // Fetch past search sessions from backend
   const fetchSessions = async (autoSelectFirst = false) => {
@@ -102,9 +156,10 @@ export default function ChatPage() {
     }
   };
 
-  // On mount, load sessions list & select the latest session
+  // On mount, load sessions list & temp docs
   useEffect(() => {
     fetchSessions(true);
+    fetchTempDocs();
   }, []);
 
   // Auto-scroll chat stream to bottom when new messages arrive (unless user is searching)
@@ -557,8 +612,45 @@ export default function ChatPage() {
           {/* Error Alert */}
           {error && <div className="alert-banner error margin-bottom">{error}</div>}
 
+          {/* Success / Status Notice */}
+          {uploadNotice && (
+            <div className="alert-banner success margin-bottom" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <span>{uploadNotice}</span>
+              <button type="button" onClick={() => setUploadNotice("")} style={{ background: "none", border: "none", cursor: "pointer", color: "inherit" }}>
+                <X size={14} />
+              </button>
+            </div>
+          )}
+
           {/* Sticky Input Bar at Bottom */}
           <div className="chatbot-input-bar-wrap">
+            {/* Active Temporary Documents Pills */}
+            {tempDocs.length > 0 && (
+              <div className="temp-docs-chat-badge-bar">
+                <div className="temp-docs-badge-label">
+                  <Sparkles size={13} style={{ color: "#2563eb" }} />
+                  <span>Your Attached Temporary Document (Private to this chat):</span>
+                </div>
+                <div className="temp-docs-chips-list">
+                  {tempDocs.map((doc) => (
+                    <div key={doc.document_id} className="temp-doc-active-chip">
+                      <FileText size={13} className="chip-file-icon" />
+                      <span className="chip-file-name" title={doc.name}>{doc.name}</span>
+                      <span className="chip-chunks-count">({doc.chunk_count} chunks in Qdrant)</span>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteTempDoc(doc.document_id)}
+                        className="chip-remove-btn"
+                        title="Remove document from temporary Qdrant vectors"
+                      >
+                        <X size={13} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <form
               onSubmit={(e) => {
                 e.preventDefault();
@@ -566,6 +658,24 @@ export default function ChatPage() {
               }}
               className="chatbot-input-form"
             >
+              {/* Hidden file input */}
+              <input
+                type="file"
+                ref={fileInputRef}
+                style={{ display: "none" }}
+                accept=".pdf,.docx,.txt,.md,.csv,.json,.log,.pptx"
+                onChange={handleFileUpload}
+              />
+              <button
+                type="button"
+                className="chatbot-attach-btn"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploadingDoc || loading}
+                title="Upload document to ingest temporarily into Qdrant for this chat"
+              >
+                {uploadingDoc ? <Loader2 size={18} className="spin-animate" /> : <Paperclip size={18} />}
+              </button>
+
               <textarea
                 ref={textareaRef}
                 rows={1}
@@ -577,7 +687,11 @@ export default function ChatPage() {
                     handleSend();
                   }
                 }}
-                placeholder="Ask Atlas AI anything about your enterprise documents..."
+                placeholder={
+                  tempDocs.length > 0
+                    ? `Ask Atlas AI about "${tempDocs[0].name}" or your enterprise documents...`
+                    : "Ask Atlas AI anything about your enterprise documents..."
+                }
                 className="chatbot-sticky-textarea"
               />
               <button

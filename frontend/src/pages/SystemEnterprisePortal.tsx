@@ -103,27 +103,15 @@ export default function SystemEnterprisePortal({
         <div className="ambient-mesh-glow" />
 
         <div className="login-card-wrapper" style={{ maxWidth: "520px" }}>
-          <div className="login-form-panel" style={{ width: "100%", padding: "2.5rem" }}>
-            <div className="form-header text-center" style={{ marginBottom: "2rem" }}>
-              <div
-                className="brand-badge glow-effect"
-                style={{
-                  margin: "0 auto 1rem auto",
-                  width: "56px",
-                  height: "56px",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  borderRadius: "16px",
-                  background: "linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)",
-                }}
-              >
-                <Building2 size={30} className="text-white" />
+          <div className="ent-gateway-card">
+            <div className="form-header text-center" style={{ marginBottom: "1.75rem" }}>
+              <div className="ent-gateway-icon-badge">
+                <Building2 size={28} className="text-white" />
               </div>
-              <h2 style={{ fontSize: "1.75rem", fontWeight: 700, color: "var(--text-primary)" }}>
+              <h2 className="ent-gateway-title">
                 Enterprise Gateway
               </h2>
-              <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem", marginTop: "0.25rem" }}>
+              <p className="ent-gateway-subtitle">
                 System Super-Admin portal for managing connected client enterprises.
               </p>
             </div>
@@ -135,64 +123,62 @@ export default function SystemEnterprisePortal({
               </div>
             )}
 
-            <form onSubmit={handleSystemLogin} className="login-form">
-              <div className="form-group">
-                <label>System Admin Email</label>
+            <form onSubmit={handleSystemLogin} className="ent-gateway-form">
+              <div className="ent-form-group">
+                <label className="ent-form-label">System Admin Email</label>
                 <input
                   type="email"
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="system@gmailexample.com"
-                  className="font-mono text-sm"
+                  className="ent-form-input ent-input-mono"
                 />
               </div>
 
-              <div className="form-group">
-                <label>Master Password</label>
-                <div className="relative">
+              <div className="ent-form-group">
+                <label className="ent-form-label">Master Password</label>
+                <div className="ent-input-relative">
                   <input
                     type={showPassword ? "text" : "password"}
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="System123@"
-                    className="w-full pr-10 font-mono text-sm"
+                    className="ent-form-input ent-input-mono"
                   />
                   <button
                     type="button"
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200"
+                    className="ent-input-eye-btn"
                     onClick={() => setShowPassword(!showPassword)}
+                    title={showPassword ? "Hide password" : "Show password"}
                   >
                     {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
                 </div>
               </div>
 
-              <div
-                style={{
-                  padding: "0.75rem 1rem",
-                  borderRadius: "8px",
-                  backgroundColor: "rgba(99, 102, 241, 0.08)",
-                  border: "1px solid rgba(99, 102, 241, 0.2)",
-                  fontSize: "0.8rem",
-                  color: "var(--text-secondary)",
-                  marginBottom: "1rem",
-                }}
-              >
-                <strong className="text-indigo-400">Fixed Credentials:</strong>
-                <div className="font-mono mt-1 text-xs">
-                  Email: <code>system@gmailexample.com</code>
-                  <br />
-                  Password: <code>System123@</code>
+              <div className="ent-creds-card">
+                <div className="ent-creds-header">
+                  <ShieldCheck size={14} className="text-indigo-500" />
+                  <strong>Fixed Master Credentials:</strong>
+                </div>
+                <div className="ent-creds-rows">
+                  <div className="ent-cred-row">
+                    <span className="cred-tag">Email:</span>
+                    <code className="cred-val">system@gmailexample.com</code>
+                  </div>
+                  <div className="ent-cred-row">
+                    <span className="cred-tag">Password:</span>
+                    <code className="cred-val">System123@</code>
+                  </div>
                 </div>
               </div>
 
               <button
                 type="submit"
-                className="btn-primary w-full justify-center"
+                className="btn-primary ent-gateway-submit-btn"
                 disabled={loginLoading}
-                style={{ padding: "0.85rem", fontSize: "1rem" }}
               >
                 {loginLoading ? "Authenticating..." : "Authorize & Enter Enterprise Portal"}
                 <ArrowRight size={18} />

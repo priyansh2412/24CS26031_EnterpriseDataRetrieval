@@ -7,14 +7,10 @@ from app.models import (
     CompanyRole,
     Document,
     DocumentACLEntry,
-    Group,
-    GroupMember,
     Role,
-    RoleAssignment,
     Team,
     TeamMember,
     User,
-    UserGroupClosure,
 )
 from app.services.qdrant_service import update_document_acl_payload
 
@@ -61,32 +57,6 @@ def resolve_user_principals(
         keys.add("r:finance")
         keys.add("r:manager")
         keys.add("*")
-
-    # Explicit role assignments
-    role_assigns = db.query(RoleAssignment).filter(RoleAssignment.user_id == user.id).all()
-    for ra in role_assigns:
-        keys.add(f"r:{ra.role_key.lower()}")
-
-    # 4. Group Keys (via group_members and user_group_closure)
-    direct_groups = (
-        db.query(Group)
-        .join(GroupMember, GroupMember.group_id == Group.id)
-        .filter(GroupMember.user_id == user.id)
-        .all()
-    )
-    for g in direct_groups:
-        keys.add(f"g:{g.key.lower()}")
-        keys.add(f"g:group-{g.key.lower()}")
-
-    closure_groups = (
-        db.query(Group)
-        .join(UserGroupClosure, UserGroupClosure.group_id == Group.id)
-        .filter(UserGroupClosure.user_id == user.id)
-        .all()
-    )
-    for g in closure_groups:
-        keys.add(f"g:{g.key.lower()}")
-        keys.add(f"g:group-{g.key.lower()}")
 
     # Auto-map role_key to standard department groups if present
     if role_k in ["hr", "finance", "engineering", "legal", "admin", "operations"]:
@@ -251,13 +221,30 @@ def verify_document_access(db: Session, user: User, document_id: str) -> bool:
     Final ACL authorization check in PostgreSQL:
     Resolves user's principals and verifies against document_acl_entries.
     """
-    role_val = user.role.value if hasattr(user.role, "value") else str(user.role or "employee").lower()
-    if role_val == "admin" or user.rank_level == 1:
-        return True
-
     doc = db.query(Document).filter(Document.id == document_id).first()
     if not doc:
         return False
+
+    # Privacy enforcement for temporary user documents:
+    # Strictly accessible ONLY to the user who uploaded it!
+    if doc.source == "temp_user":
+        user_email = user.email.strip().lower()
+        doc_owner = (doc.owner_email or "").strip().lower()
+        return doc_owner == user_email or str(doc.id).endswith(str(user.id).replace("-", ""))
+
+    # Privacy enforcement for temporary team documents:
+    # Strictly accessible ONLY to members of that team!
+    if doc.source == "temp_team":
+        try:
+            t_id = int(doc.project_id)
+            is_mem = db.query(TeamMember).filter(TeamMember.team_id == t_id, TeamMember.user_id == user.id).first()
+            return is_mem is not None or (doc.owner_email or "").strip().lower() == user.email.strip().lower()
+        except Exception:
+            return (doc.owner_email or "").strip().lower() == user.email.strip().lower()
+
+    role_val = user.role.value if hasattr(user.role, "value") else str(user.role or "employee").lower()
+    if role_val == "admin" or user.rank_level == 1:
+        return True
 
     # Check doc.denied_users JSON list first
     if doc.denied_users:
@@ -295,6 +282,8 @@ def verify_document_access(db: Session, user: User, document_id: str) -> bool:
 
     if allow_entries:
         for (allow_key,) in allow_entries:
+            if allow_key.startswith("t:"):
+                continue  # Tenant keys represent tenant scope, not role authorization
             if allow_key in user_principals or allow_key == "*":
                 return True
         return False

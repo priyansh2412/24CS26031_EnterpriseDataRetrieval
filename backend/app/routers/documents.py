@@ -38,6 +38,9 @@ def list_documents(
     if not _is_system_admin(user):
         query = query.filter(Document.tenant_id == eff_tenant)
 
+    # Exclude temporary user/team uploads from general knowledge library
+    query = query.filter(Document.source.notin_(["temp_user", "temp_team"]))
+
     if search:
         query = query.filter(Document.name.ilike(f"%{search}%"))
 

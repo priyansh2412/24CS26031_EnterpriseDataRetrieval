@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.security import get_current_user, hash_password
-from app.models import AuditLog, CompanyRole, LogSeverity, Role, SystemSetting, User
+from app.models import AuditLog, CompanyRole, LogSeverity, Role, Tenant, User
 from app.schemas import CompanyRoleSchema, SetupStatusOut, SystemSetupInit
 
 router = APIRouter(prefix="/api/setup", tags=["setup"])
@@ -11,10 +11,10 @@ router = APIRouter(prefix="/api/setup", tags=["setup"])
 
 @router.get("/status", response_model=SetupStatusOut)
 def get_setup_status(db: Session = Depends(get_db)):
-    setting = db.query(SystemSetting).filter(SystemSetting.key == "setup_completed").first()
-    is_init = setting is not None and setting.value == "true"
-    comp_name_setting = db.query(SystemSetting).filter(SystemSetting.key == "company_name").first()
-    company_name = comp_name_setting.value if comp_name_setting else None
+    tenant = db.query(Tenant).first()
+    has_admin = db.query(User).filter(User.rank_level == 1).first() is not None
+    is_init = tenant is not None and has_admin
+    company_name = tenant.name if tenant else "Apex Enterprise"
     return SetupStatusOut(is_initialized=is_init, company_name=company_name)
 
 
@@ -133,13 +133,17 @@ def delete_company_role(
 
 @router.post("/initialize", response_model=SetupStatusOut)
 def initialize_system(payload: SystemSetupInit, db: Session = Depends(get_db)):
-    setting = db.query(SystemSetting).filter(SystemSetting.key == "setup_completed").first()
-    if setting and setting.value == "true":
+    admin_exists = db.query(User).filter(User.rank_level == 1).first() is not None
+    if admin_exists:
         raise HTTPException(status_code=400, detail="System setup has already been completed.")
 
-    # 1. Store Company Name & Setup Completed Flag
-    db.merge(SystemSetting(key="setup_completed", value="true"))
-    db.merge(SystemSetting(key="company_name", value=payload.company_name))
+    # 1. Store Company Name in Tenant
+    tenant = db.query(Tenant).first()
+    if not tenant:
+        tenant = Tenant(name=payload.company_name, slug="default")
+        db.add(tenant)
+    else:
+        tenant.name = payload.company_name
 
     # 2. Add Company Roles
     for role_def in payload.roles:
