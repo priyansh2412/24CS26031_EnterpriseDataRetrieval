@@ -29,6 +29,7 @@ from app.routers import (
     enterprises,
     feedback,
     ingestion,
+    jira,
     setup,
     sources,
     teams,
@@ -162,6 +163,7 @@ app.include_router(teams.router)
 app.include_router(enterprises.router)
 app.include_router(whatsapp.router)
 app.include_router(whatsapp.internal_router)
+app.include_router(jira.router)
 
 
 

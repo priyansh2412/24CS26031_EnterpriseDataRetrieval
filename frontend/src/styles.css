@@ -4057,6 +4057,529 @@ button:disabled {
   font-size: 13.5px;
 }
 
+/* ===================================================================
+   TEAM CHAT -> JIRA INTEGRATION & MODE TOGGLE (LIGHT THEME)
+   =================================================================== */
+
+.team-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.jira-header-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #f8fafc;
+  color: #1e293b;
+  border: 1px solid #cbd5e1;
+  font-weight: 600;
+  padding: 8px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.jira-header-btn:hover {
+  background: #eff6ff;
+  border-color: #3b82f6;
+  color: #1d4ed8;
+}
+
+/* Collapsible Linked Jira Issues Bar */
+.jira-linked-bar {
+  margin-top: 10px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 9px;
+  overflow: hidden;
+  transition: all 0.2s ease;
+}
+
+.jira-linked-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  cursor: pointer;
+  user-select: none;
+  background: #f1f5f9;
+  transition: background 0.15s ease;
+}
+
+.jira-linked-header:hover {
+  background: #e2e8f0;
+}
+
+.jira-linked-header-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.jira-bar-icon {
+  color: #2563eb;
+}
+
+.jira-linked-title {
+  font-size: 11px;
+  font-weight: 800;
+  color: #475569;
+  letter-spacing: 0.5px;
+}
+
+.jira-linked-header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.jira-latest-badge {
+  font-size: 11px;
+  font-weight: 700;
+  background: #dbeafe;
+  color: #1e40af;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.jira-collapse-btn {
+  background: transparent;
+  border: none;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  padding: 2px;
+  cursor: pointer;
+}
+
+.jira-linked-content {
+  padding: 10px 12px;
+}
+
+.jira-linked-empty {
+  font-size: 12px;
+  color: #64748b;
+  font-style: italic;
+}
+
+.jira-issues-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.jira-issue-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  color: #1e293b;
+  text-decoration: none;
+  transition: all 0.15s ease;
+}
+
+.jira-issue-pill:hover {
+  border-color: #2563eb;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.jira-pill-key {
+  font-weight: 800;
+  color: #2563eb;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.jira-pill-title {
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.jira-pill-external {
+  color: #94a3b8;
+}
+
+/* Chat Mode Toggle Bar */
+.chat-mode-control-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 14px;
+  flex-wrap: wrap;
+}
+
+.chat-mode-toggle {
+  display: inline-flex;
+  background: #e2e8f0;
+  padding: 3px;
+  border-radius: 8px;
+  gap: 2px;
+}
+
+.chat-mode-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  border: none;
+  background: transparent;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.chat-mode-btn:hover {
+  color: #1e293b;
+}
+
+.chat-mode-btn.active {
+  background: #ffffff;
+  color: #2563eb;
+  font-weight: 700;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.chat-mode-hint {
+  font-size: 11.5px;
+  color: #64748b;
+  font-weight: 500;
+}
+
+/* Team Message & Jira Suggestion Card */
+.team-mode-thread {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.chat-msg.team-member-msg {
+  align-self: flex-start;
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  border-left: 3px solid #3b82f6;
+  max-width: 85%;
+}
+
+.jira-suggestion-card {
+  align-self: flex-start;
+  max-width: 500px;
+  width: 100%;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-top: 2px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border-left: 3px solid #2563eb;
+  transition: all 0.2s ease;
+}
+
+.jira-suggestion-card.status-failed {
+  border-left-color: #ef4444;
+  background: #fffafa;
+}
+
+.jira-suggestion-card.status-created {
+  border-left-color: #10b981;
+  background: #f0fdf4;
+}
+
+.jira-card-header {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.jira-card-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  color: #2563eb;
+  text-transform: uppercase;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+}
+
+.jira-sparkle-icon {
+  color: #2563eb;
+}
+
+.jira-suggestion-title {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #1e293b;
+  line-height: 1.35;
+}
+
+.jira-chips-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.jira-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border-radius: 5px;
+  font-size: 11.5px;
+  font-weight: 600;
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #e2e8f0;
+}
+
+.jira-chip.chip-intent-task {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border-color: #bfdbfe;
+}
+
+.jira-chip.chip-intent-meeting {
+  background: #fdf4ff;
+  color: #86198f;
+  border-color: #f5d0fe;
+}
+
+.jira-chip.chip-intent-deadline {
+  background: #fff7ed;
+  color: #c2410c;
+  border-color: #ffedd5;
+}
+
+.jira-chip.chip-assignee {
+  background: #f8fafc;
+  color: #334155;
+}
+
+.jira-chip.chip-due {
+  background: #fefce8;
+  color: #854d0e;
+  border-color: #fef08a;
+}
+
+.jira-card-error {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  color: #b91c1c;
+  background: #fee2e2;
+  padding: 6px 10px;
+  border-radius: 6px;
+}
+
+.jira-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-jira-create {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  background: #2563eb;
+  color: #ffffff;
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-jira-create:hover:not(:disabled) {
+  background: #1d4ed8;
+}
+
+.btn-jira-create:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.btn-jira-dismiss {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  background: transparent;
+  color: #64748b;
+  border: 1px solid #cbd5e1;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-jira-dismiss:hover:not(:disabled) {
+  background: #f1f5f9;
+  color: #1e293b;
+}
+
+.btn-jira-dismiss:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.jira-card-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: #2563eb;
+  font-weight: 600;
+}
+
+.jira-card-created {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.jira-created-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.jira-created-label {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #047857;
+}
+
+.jira-key-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: #dbeafe;
+  color: #1e40af;
+  border: 1px solid #93c5fd;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 800;
+  text-decoration: none;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  transition: all 0.15s ease;
+}
+
+.jira-key-badge:hover {
+  background: #bfdbfe;
+  border-color: #2563eb;
+  color: #1d4ed8;
+}
+
+.jira-unassigned-note {
+  font-size: 11px;
+  color: #64748b;
+  font-style: italic;
+}
+
+/* Jira Settings Modal */
+.jira-settings-modal {
+  max-width: 500px;
+  width: 100%;
+}
+
+.jira-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 14px;
+}
+
+.jira-status-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.jira-status-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12.5px;
+}
+
+.jira-status-label {
+  font-weight: 600;
+  color: #64748b;
+}
+
+.jira-status-value {
+  font-weight: 600;
+  color: #1e293b;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+}
+
+.jira-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.jira-status-pill.connected {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.jira-status-pill.disconnected {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.jira-notice-box {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 12px;
+  color: #1e40af;
+  line-height: 1.45;
+}
+
+.jira-settings-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.form-help-text {
+  font-size: 11.5px;
+  color: #64748b;
+  margin-top: 4px;
+}
+
 /* ===================================================================   ENHANCED TEAM MEMBER MODAL
    ========================================================================== */
 
@@ -5732,4 +6255,252 @@ button:disabled {
   background: #3f3f46;
   color: #ffffff;
 }
+
+/* ===================================================================
+   TEAM CHAT -> JIRA INTEGRATION & MODE TOGGLE (DARK THEME OVERRIDES)
+   =================================================================== */
+
+.app-shell.dark-theme .jira-header-btn {
+  background: #18181b;
+  color: #f4f4f5;
+  border-color: #27272a;
+}
+
+.app-shell.dark-theme .jira-header-btn:hover {
+  background: #27272a;
+  border-color: #3b82f6;
+  color: #60a5fa;
+}
+
+.app-shell.dark-theme .jira-linked-bar {
+  background: #0f0f10;
+  border-color: #27272a;
+}
+
+.app-shell.dark-theme .jira-linked-header {
+  background: #18181b;
+}
+
+.app-shell.dark-theme .jira-linked-header:hover {
+  background: #27272a;
+}
+
+.app-shell.dark-theme .jira-bar-icon {
+  color: #60a5fa;
+}
+
+.app-shell.dark-theme .jira-linked-title {
+  color: #a1a1aa;
+}
+
+.app-shell.dark-theme .jira-latest-badge {
+  background: #1e3a5f;
+  color: #93c5fd;
+}
+
+.app-shell.dark-theme .jira-collapse-btn {
+  color: #a1a1aa;
+}
+
+.app-shell.dark-theme .jira-linked-empty {
+  color: #71717a;
+}
+
+.app-shell.dark-theme .jira-issue-pill {
+  background: #18181b;
+  border-color: #27272a;
+  color: #f4f4f5;
+}
+
+.app-shell.dark-theme .jira-issue-pill:hover {
+  border-color: #3b82f6;
+  background: #1e293b;
+  color: #93c5fd;
+}
+
+.app-shell.dark-theme .jira-pill-key {
+  color: #60a5fa;
+}
+
+.app-shell.dark-theme .jira-pill-external {
+  color: #71717a;
+}
+
+.app-shell.dark-theme .chat-mode-toggle {
+  background: #18181b;
+  border: 1px solid #27272a;
+}
+
+.app-shell.dark-theme .chat-mode-btn {
+  color: #a1a1aa;
+}
+
+.app-shell.dark-theme .chat-mode-btn:hover {
+  color: #ffffff;
+}
+
+.app-shell.dark-theme .chat-mode-btn.active {
+  background: #27272a;
+  color: #60a5fa;
+}
+
+.app-shell.dark-theme .chat-mode-hint {
+  color: #71717a;
+}
+
+.app-shell.dark-theme .chat-msg.team-member-msg {
+  background: #18181b;
+  border-color: #27272a;
+  border-left-color: #3b82f6;
+  color: #f4f4f5;
+}
+
+.app-shell.dark-theme .jira-suggestion-card {
+  background: #121214;
+  border-color: #27272a;
+  border-left-color: #3b82f6;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+.app-shell.dark-theme .jira-suggestion-card.status-failed {
+  border-left-color: #ef4444;
+  background: #1a0f0f;
+}
+
+.app-shell.dark-theme .jira-suggestion-card.status-created {
+  border-left-color: #10b981;
+  background: #0d1a14;
+}
+
+.app-shell.dark-theme .jira-card-title-wrap {
+  color: #60a5fa;
+}
+
+.app-shell.dark-theme .jira-sparkle-icon {
+  color: #60a5fa;
+}
+
+.app-shell.dark-theme .jira-suggestion-title {
+  color: #f4f4f5;
+}
+
+.app-shell.dark-theme .jira-chip {
+  background: #1c1c1f;
+  color: #d4d4d8;
+  border-color: #2e2e32;
+}
+
+.app-shell.dark-theme .jira-chip.chip-intent-task {
+  background: #172554;
+  color: #93c5fd;
+  border-color: #1e40af;
+}
+
+.app-shell.dark-theme .jira-chip.chip-intent-meeting {
+  background: #3b0764;
+  color: #f0abfc;
+  border-color: #701a75;
+}
+
+.app-shell.dark-theme .jira-chip.chip-intent-deadline {
+  background: #431407;
+  color: #fdba74;
+  border-color: #9a3412;
+}
+
+.app-shell.dark-theme .jira-chip.chip-assignee {
+  background: #1c1c1f;
+  color: #e4e4e7;
+}
+
+.app-shell.dark-theme .jira-chip.chip-due {
+  background: #422006;
+  color: #fef08a;
+  border-color: #713f12;
+}
+
+.app-shell.dark-theme .jira-card-error {
+  background: #450a0a;
+  color: #fca5a5;
+}
+
+.app-shell.dark-theme .btn-jira-create {
+  background: #2563eb;
+  color: #ffffff;
+}
+
+.app-shell.dark-theme .btn-jira-create:hover:not(:disabled) {
+  background: #1d4ed8;
+}
+
+.app-shell.dark-theme .btn-jira-dismiss {
+  border-color: #3f3f46;
+  color: #a1a1aa;
+}
+
+.app-shell.dark-theme .btn-jira-dismiss:hover:not(:disabled) {
+  background: #27272a;
+  color: #ffffff;
+}
+
+.app-shell.dark-theme .jira-card-loading {
+  color: #60a5fa;
+}
+
+.app-shell.dark-theme .jira-created-label {
+  color: #34d399;
+}
+
+.app-shell.dark-theme .jira-key-badge {
+  background: #1e3a5f;
+  color: #93c5fd;
+  border-color: #2563eb;
+}
+
+.app-shell.dark-theme .jira-key-badge:hover {
+  background: #2563eb;
+  color: #ffffff;
+}
+
+.app-shell.dark-theme .jira-unassigned-note {
+  color: #71717a;
+}
+
+.app-shell.dark-theme .jira-settings-modal {
+  background: #121214;
+}
+
+.app-shell.dark-theme .jira-status-card {
+  background: #18181b;
+  border-color: #27272a;
+}
+
+.app-shell.dark-theme .jira-status-label {
+  color: #a1a1aa;
+}
+
+.app-shell.dark-theme .jira-status-value {
+  color: #e4e4e7;
+}
+
+.app-shell.dark-theme .jira-status-pill.connected {
+  background: #064e3b;
+  color: #6ee7b7;
+}
+
+.app-shell.dark-theme .jira-status-pill.disconnected {
+  background: #450a0a;
+  color: #fca5a5;
+}
+
+.app-shell.dark-theme .jira-notice-box {
+  background: #172554;
+  border-color: #1e40af;
+  color: #bfdbfe;
+}
+
+.app-shell.dark-theme .form-help-text {
+  color: #71717a;
+}
+
 

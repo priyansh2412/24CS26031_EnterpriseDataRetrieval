@@ -11,9 +11,13 @@ router = APIRouter(prefix="/api/setup", tags=["setup"])
 
 @router.get("/status", response_model=SetupStatusOut)
 def get_setup_status(db: Session = Depends(get_db)):
-    tenant = db.query(Tenant).first()
     has_admin = db.query(User).filter(User.rank_level == 1).first() is not None
-    is_init = tenant is not None and has_admin
+    tenant = db.query(Tenant).first()
+    if has_admin and not tenant:
+        tenant = Tenant(name="Apex Enterprise", slug="default")
+        db.add(tenant)
+        db.commit()
+    is_init = has_admin or (tenant is not None)
     company_name = tenant.name if tenant else "Apex Enterprise"
     return SetupStatusOut(is_initialized=is_init, company_name=company_name)
 

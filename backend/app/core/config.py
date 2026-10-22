@@ -54,6 +54,14 @@ class Settings(BaseSettings):
     whatsapp_bot_number: str = ""
     whatsapp_gateway_secret: str = ""
 
+    # Jira Cloud Integration
+    jira_base_url: str = ""
+    jira_email: str = ""
+    jira_api_token: str = ""
+    jira_default_project_key: str = ""
+    jira_default_issue_type: str = "Task"
+    jira_suggestion_min_confidence: float = 0.6
+
     # Optional third-party providers
     groq_api_key: str | None = None
     openai_api_key: str | None = None
@@ -81,3 +89,12 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+
+def jira_configured() -> bool:
+    """Return True only when Jira base url, email and API token are all non-empty."""
+    return bool(
+        settings.jira_base_url and settings.jira_base_url.strip() and
+        settings.jira_email and settings.jira_email.strip() and
+        settings.jira_api_token and settings.jira_api_token.strip()
+    )

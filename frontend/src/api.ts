@@ -80,9 +80,33 @@ export interface TeamItem {
   name: string;
   project_name: string;
   description?: string;
+  jira_project_key?: string | null;
   created_by_id: string | number;
   created_at: string;
   members: TeamMemberItem[];
+}
+
+export interface JiraLinkItem {
+  id: number;
+  status: "pending" | "creating" | "created" | "dismissed" | "failed";
+  intent: "task" | "meeting" | "deadline";
+  title: string;
+  assignee_hint?: string | null;
+  assignee_email?: string | null;
+  assignee_name?: string | null;
+  due_date?: string | null;
+  due_time?: string | null;
+  jira_key?: string | null;
+  jira_url?: string | null;
+  assigned_in_jira?: boolean;
+  error_message?: string | null;
+}
+
+export interface JiraStatus {
+  configured: boolean;
+  base_url: string;
+  default_project_key: string;
+  default_issue_type: string;
 }
 
 export interface TeamChatMessageItem {
@@ -93,6 +117,8 @@ export interface TeamChatMessageItem {
   message: string;
   response: string;
   citations: Array<{ document_id: string | number; document_name: string; chunk_index: number; text: string; score: number }>;
+  message_type?: "ai" | "team";
+  jira?: JiraLinkItem | null;
   created_at: string;
 }
 
@@ -274,6 +300,48 @@ export async function linkStatus(): Promise<WhatsAppLinkStatusResponse> {
 export async function linkDelete(): Promise<WhatsAppUnlinkResponse> {
   return request<WhatsAppUnlinkResponse>("/api/whatsapp/link", {
     method: "DELETE",
+  });
+}
+
+// ==================== JIRA INTEGRATION API ====================
+
+export async function getJiraStatus(): Promise<JiraStatus> {
+  return request<JiraStatus>("/api/jira/status", {
+    method: "GET",
+  });
+}
+
+export async function getTeamJiraSettings(teamId: number): Promise<{ status: string; team_id: number; jira_project_key: string | null }> {
+  return request<{ status: string; team_id: number; jira_project_key: string | null }>(`/api/jira/teams/${teamId}/settings`, {
+    method: "GET",
+  });
+}
+
+export async function updateTeamJiraSettings(
+  teamId: number,
+  jiraProjectKey: string | null
+): Promise<{ status: string; team_id: number; jira_project_key: string | null }> {
+  return request<{ status: string; team_id: number; jira_project_key: string | null }>(`/api/jira/teams/${teamId}/settings`, {
+    method: "PATCH",
+    body: JSON.stringify({ jira_project_key: jiraProjectKey }),
+  });
+}
+
+export async function listTeamJiraIssues(teamId: number): Promise<JiraLinkItem[]> {
+  return request<JiraLinkItem[]>(`/api/jira/teams/${teamId}/issues`, {
+    method: "GET",
+  });
+}
+
+export async function confirmJiraSuggestion(linkId: number): Promise<JiraLinkItem> {
+  return request<JiraLinkItem>(`/api/jira/suggestions/${linkId}/confirm`, {
+    method: "POST",
+  });
+}
+
+export async function dismissJiraSuggestion(linkId: number): Promise<{ status: string; id: number }> {
+  return request<{ status: string; id: number }>(`/api/jira/suggestions/${linkId}/dismiss`, {
+    method: "POST",
   });
 }
 

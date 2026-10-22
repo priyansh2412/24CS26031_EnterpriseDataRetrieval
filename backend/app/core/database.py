@@ -118,6 +118,14 @@ def apply_compatible_migrations() -> None:
                     connection.execute(text("ALTER TABLE teams ADD COLUMN tenant_id VARCHAR(64) DEFAULT 'tenant-001'"))
                 if "project_name" not in team_columns:
                     connection.execute(text("ALTER TABLE teams ADD COLUMN project_name VARCHAR(150) DEFAULT 'General'"))
+                if "jira_project_key" not in team_columns:
+                    connection.execute(text("ALTER TABLE teams ADD COLUMN jira_project_key VARCHAR(50) NULL"))
+
+            if "team_chat_messages" in table_names:
+                msg_columns = {column["name"] for column in inspector.get_columns("team_chat_messages")}
+                if "message_type" not in msg_columns:
+                    connection.execute(text("ALTER TABLE team_chat_messages ADD COLUMN message_type VARCHAR(20) DEFAULT 'ai'"))
+                    connection.execute(text("UPDATE team_chat_messages SET message_type = 'ai' WHERE message_type IS NULL"))
 
             if "query_logs" in table_names:
                 log_columns = {column["name"] for column in inspector.get_columns("query_logs")}
