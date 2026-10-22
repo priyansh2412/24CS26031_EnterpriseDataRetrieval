@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Users, UserPlus, Shield, CheckCircle, XCircle, AlertCircle, RefreshCw, Layers } from "lucide-react";
+import { Users, UserPlus, Shield, CheckCircle, XCircle, AlertCircle, RefreshCw, Layers, X } from "lucide-react";
 import { CompanyRoleItem, UserProfile, request } from "../api";
 
 interface UserManagementPageProps {
@@ -42,6 +42,17 @@ export default function UserManagementPage({ currentUser }: UserManagementPagePr
 
   useEffect(() => {
     loadData();
+  }, []);
+
+  // Close modal on Escape
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setShowAddModal(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
   const handleCreateUser = async (e: React.FormEvent) => {
@@ -130,7 +141,7 @@ export default function UserManagementPage({ currentUser }: UserManagementPagePr
             Upper role authority users can create, modify, and assign team projects to subordinate (succeeding level) users.
           </p>
         </div>
-        <button className="btn-primary" onClick={() => setShowAddModal(true)}>
+        <button className="btn-primary btn-pill" onClick={() => setShowAddModal(true)}>
           <UserPlus size={16} /> Add Subordinate User
         </button>
       </header>
@@ -149,11 +160,11 @@ export default function UserManagementPage({ currentUser }: UserManagementPagePr
         </div>
       )}
 
-      <div className="table-card">
-        <div className="table-header">
-          <div className="table-title">
-            <Shield size={18} />
-            <h3>Organization Accounts ({users.length})</h3>
+      <div className="table-card card-glass" style={{ overflow: "hidden", borderRadius: "var(--radius-xl)" }}>
+        <div className="table-header" style={{ padding: "18px 24px", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div className="table-title" style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <Shield size={18} style={{ color: "var(--accent)" }} />
+            <h3 style={{ margin: 0, fontSize: "16px", fontWeight: "700", color: "var(--text)" }}>Organization Accounts ({users.length})</h3>
           </div>
           <button className="btn-icon" onClick={loadData} title="Refresh Users">
             <RefreshCw size={15} />
@@ -161,17 +172,21 @@ export default function UserManagementPage({ currentUser }: UserManagementPagePr
         </div>
 
         {loading ? (
-          <div className="table-loading">Loading organization accounts…</div>
+          <div style={{ padding: "24px", display: "flex", flexDirection: "column", gap: "12px" }}>
+            <div className="skeleton" style={{ height: "40px", borderRadius: "var(--radius-md)" }} />
+            <div className="skeleton" style={{ height: "40px", borderRadius: "var(--radius-md)" }} />
+            <div className="skeleton" style={{ height: "40px", borderRadius: "var(--radius-md)" }} />
+          </div>
         ) : (
           <table className="enterprise-table">
             <thead>
               <tr>
                 <th>ID</th>
                 <th>Email Address</th>
-                <th>Hierarchy Rank Level</th>
-                <th>Assigned Role Key</th>
+                <th>Hierarchy Rank</th>
+                <th>Assigned Role</th>
                 <th>Status</th>
-                <th>Actions</th>
+                <th style={{ textAlign: "right" }}>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -184,17 +199,37 @@ export default function UserManagementPage({ currentUser }: UserManagementPagePr
                 return (
                   <tr key={u.id}>
                     <td>
-                      <span className="mono-id">#{u.id}</span>
+                      <span className="mono-id" style={{ color: "var(--text-muted)" }}>#{u.id}</span>
                     </td>
                     <td>
-                      <div className="user-email-cell">
-                        <div className="user-avatar">{u.email[0].toUpperCase()}</div>
-                        <strong>{u.email}</strong>
+                      <div className="user-email-cell" style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                        <div
+                          className="user-avatar"
+                          style={{
+                            width: "34px",
+                            height: "34px",
+                            borderRadius: "var(--radius-full)",
+                            background: "var(--palette-gradient)",
+                            color: "#ffffff",
+                            display: "grid",
+                            placeItems: "center",
+                            fontWeight: "700",
+                            fontSize: "13px",
+                            flexShrink: 0,
+                            boxShadow: "0 2px 6px rgba(99, 102, 241, 0.2)",
+                          }}
+                        >
+                          {u.email[0].toUpperCase()}
+                        </div>
+                        <div>
+                          <strong style={{ color: "var(--text)", fontSize: "13.5px", display: "block" }}>{u.email}</strong>
+                          {u.display_name && <span style={{ fontSize: "11px", color: "var(--text-muted)" }}>{u.display_name}</span>}
+                        </div>
                       </div>
                     </td>
                     <td>
-                      <span className={`rank-tag-pill rank-${u.rank_level}`}>
-                        <Layers size={12} /> Rank {u.rank_level}
+                      <span className="chip" style={{ fontWeight: "700", fontSize: "11.5px" }}>
+                        <Layers size={12} style={{ color: "var(--accent)" }} /> Rank {u.rank_level}
                       </span>
                     </td>
                     <td>
@@ -203,6 +238,16 @@ export default function UserManagementPage({ currentUser }: UserManagementPagePr
                           className="role-select"
                           value={u.role_key || u.role}
                           onChange={(e) => handleUpdateRole(u.id, e.target.value)}
+                          style={{
+                            padding: "6px 12px",
+                            borderRadius: "var(--radius-full)",
+                            border: "1px solid var(--border)",
+                            background: "var(--surface)",
+                            color: "var(--text)",
+                            fontSize: "12.5px",
+                            fontWeight: "600",
+                            outline: "none",
+                          }}
                         >
                           {companyRoles.length > 0 ? (
                             companyRoles.map((r) => (
@@ -220,7 +265,7 @@ export default function UserManagementPage({ currentUser }: UserManagementPagePr
                           )}
                         </select>
                       ) : (
-                        <span className="read-only-role">{u.role_key || u.role}</span>
+                        <span className="chip" style={{ textTransform: "uppercase", fontSize: "11px" }}>{u.role_key || u.role}</span>
                       )}
                     </td>
                     <td>
@@ -229,16 +274,17 @@ export default function UserManagementPage({ currentUser }: UserManagementPagePr
                         {u.is_active !== false ? "Active" : "Deactivated"}
                       </span>
                     </td>
-                    <td>
+                    <td style={{ textAlign: "right" }}>
                       {canModify ? (
                         <button
-                          className="btn-link-action"
+                          className="btn-pill btn-secondary"
                           onClick={() => handleToggleStatus(u.id, u.is_active !== false)}
+                          style={{ padding: "4px 12px", fontSize: "12px" }}
                         >
                           {u.is_active !== false ? "Deactivate" : "Activate"}
                         </button>
                       ) : (
-                        <span className="muted-text">Higher / Equal Rank</span>
+                        <span style={{ fontSize: "12px", color: "var(--text-muted)" }}>Protected</span>
                       )}
                     </td>
                   </tr>
@@ -252,43 +298,85 @@ export default function UserManagementPage({ currentUser }: UserManagementPagePr
       {/* Add User Modal */}
       {showAddModal && (
         <div className="modal-overlay" onClick={() => setShowAddModal(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <div className="modal-icon">
-                <UserPlus size={22} />
+          <div className="modal-content animated-scale-up card-glass" onClick={(e) => e.stopPropagation()} style={{ maxWidth: "520px" }}>
+            <header className="modal-header">
+              <div className="glow-icon">
+                <UserPlus size={20} />
               </div>
               <div>
-                <h3>Add User Account</h3>
-                <p>Assign corporate role hierarchy & login credentials.</p>
+                <h3 style={{ margin: 0, fontSize: "17px", fontWeight: "800", color: "var(--text)" }}>Add User Account</h3>
+                <p style={{ margin: "2px 0 0", fontSize: "12px", color: "var(--text-muted)" }}>Assign corporate role hierarchy & login credentials.</p>
               </div>
-            </div>
+              <button
+                type="button"
+                className="close-btn"
+                style={{ marginLeft: "auto" }}
+                onClick={() => setShowAddModal(false)}
+                title="Close"
+              >
+                <X size={18} />
+              </button>
+            </header>
 
-            <form onSubmit={handleCreateUser} className="modal-body">
-              <div className="form-field">
-                <label>Work Email</label>
+            <form onSubmit={handleCreateUser} className="modal-body" style={{ padding: "20px 24px" }}>
+              <div className="form-group" style={{ marginBottom: "16px" }}>
+                <label style={{ display: "block", fontSize: "12px", fontWeight: "600", color: "var(--text-muted)", marginBottom: "6px" }}>Work Email</label>
                 <input
                   type="email"
                   required
                   value={newEmail}
                   onChange={(e) => setNewEmail(e.target.value)}
                   placeholder="user@company.com"
+                  style={{
+                    width: "100%",
+                    padding: "10px 14px",
+                    borderRadius: "var(--radius-md)",
+                    border: "1px solid var(--border)",
+                    background: "var(--surface)",
+                    color: "var(--text)",
+                    fontSize: "13.5px",
+                    outline: "none",
+                  }}
                 />
               </div>
 
-              <div className="form-field">
-                <label>Initial Password</label>
+              <div className="form-group" style={{ marginBottom: "16px" }}>
+                <label style={{ display: "block", fontSize: "12px", fontWeight: "600", color: "var(--text-muted)", marginBottom: "6px" }}>Initial Password</label>
                 <input
                   type="password"
                   required
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
                   placeholder="Minimum 8 characters"
+                  style={{
+                    width: "100%",
+                    padding: "10px 14px",
+                    borderRadius: "var(--radius-md)",
+                    border: "1px solid var(--border)",
+                    background: "var(--surface)",
+                    color: "var(--text)",
+                    fontSize: "13.5px",
+                    outline: "none",
+                  }}
                 />
               </div>
 
-              <div className="form-field">
-                <label>Company Role Level</label>
-                <select value={newRoleKey} onChange={(e) => setNewRoleKey(e.target.value)}>
+              <div className="form-group" style={{ marginBottom: "20px" }}>
+                <label style={{ display: "block", fontSize: "12px", fontWeight: "600", color: "var(--text-muted)", marginBottom: "6px" }}>Company Role Level</label>
+                <select
+                  value={newRoleKey}
+                  onChange={(e) => setNewRoleKey(e.target.value)}
+                  style={{
+                    width: "100%",
+                    padding: "10px 14px",
+                    borderRadius: "var(--radius-md)",
+                    border: "1px solid var(--border)",
+                    background: "var(--surface)",
+                    color: "var(--text)",
+                    fontSize: "13.5px",
+                    outline: "none",
+                  }}
+                >
                   {companyRoles.map((r) => (
                     <option key={r.key} value={r.key}>
                       Rank {r.rank_level}: {r.name} ({r.description || r.key})
@@ -297,11 +385,11 @@ export default function UserManagementPage({ currentUser }: UserManagementPagePr
                 </select>
               </div>
 
-              <div className="modal-actions">
-                <button type="button" className="btn-secondary" onClick={() => setShowAddModal(false)}>
+              <div className="modal-actions" style={{ padding: 0 }}>
+                <button type="button" className="btn-outline btn-pill" onClick={() => setShowAddModal(false)}>
                   Cancel
                 </button>
-                <button type="submit" className="btn-primary" disabled={creating}>
+                <button type="submit" className="btn-primary btn-pill" disabled={creating}>
                   {creating ? "Creating..." : "Save User Account"}
                 </button>
               </div>

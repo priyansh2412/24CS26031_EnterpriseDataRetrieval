@@ -69,7 +69,7 @@ Each employee is allocated an annual stipend of $1,500 for courses, certificatio
   ];
 
   return (
-    <div className="hr-portal-page">
+    <div className="hr-portal-page animate-fade-in">
       <header className="page-heading">
         <div>
           <div className="eyebrow">

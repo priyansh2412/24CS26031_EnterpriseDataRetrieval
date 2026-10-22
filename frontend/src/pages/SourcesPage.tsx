@@ -23,7 +23,7 @@ export default function SourcesPage({ answer, onAsk }: { answer: SourceAnswer | 
           <Quote size={32} />
           <strong>No Answer Selected Yet</strong>
           <p>Ask Atlas AI Assistant a question first, then use inline citations to review evidence.</p>
-          <button className="btn-primary" onClick={onAsk}>
+          <button className="btn-pill btn-primary" onClick={onAsk}>
             Ask Atlas Assistant
           </button>
         </section>
@@ -32,7 +32,7 @@ export default function SourcesPage({ answer, onAsk }: { answer: SourceAnswer | 
   }
 
   return (
-    <div className="sources-page">
+    <div className="sources-page animate-fade-in">
       <header className="page-heading">
         <div>
           <div className="eyebrow">
@@ -43,7 +43,7 @@ export default function SourcesPage({ answer, onAsk }: { answer: SourceAnswer | 
             Passages retrieved for: “{answer.answer.slice(0, 85)}{answer.answer.length > 85 ? "…" : ""}”
           </p>
         </div>
-        <button className="btn-secondary" onClick={onAsk}>
+        <button className="btn-pill btn-secondary" onClick={onAsk}>
           <ArrowLeft size={16} /> Back to Answer
         </button>
       </header>

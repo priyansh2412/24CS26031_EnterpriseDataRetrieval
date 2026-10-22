@@ -28,20 +28,27 @@ def generate_answer(question: str, citations: list[Citation]) -> str:
 
     # 1. Primary: Google Gemini
     if settings.gemini_api_key:
-        try:
-            client = get_genai_client()
-            response = client.models.generate_content(
-                model=settings.gemini_model,
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    system_instruction="You are a precise, intelligent enterprise knowledge assistant. Cite sources with [Source N].",
-                    temperature=0.2,
-                ),
-            )
-            if response and response.text:
-                return response.text
-        except Exception as e:
-            print(f"Gemini generate_answer failed: {e}")
+        candidate_models = []
+        for m in [settings.gemini_model, "gemini-3.5-flash", "gemini-3.5-flash-lite"]:
+            if m and m not in candidate_models:
+                candidate_models.append(m)
+
+        for model_name in candidate_models:
+            try:
+                client = get_genai_client()
+                response = client.models.generate_content(
+                    model=model_name,
+                    contents=prompt,
+                    config=types.GenerateContentConfig(
+                        system_instruction="You are a precise, intelligent enterprise knowledge assistant. Answer questions directly, concisely, and naturally. Cite sources with [Source N].",
+                        temperature=0.2,
+                    ),
+                )
+                if response and response.text:
+                    return response.text
+            except Exception as e:
+                print(f"Gemini generate_answer failed for model {model_name}: {e}")
+
 
     # 2. Fallback: Groq
     if settings.groq_api_key:

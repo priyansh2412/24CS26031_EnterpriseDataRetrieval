@@ -96,6 +96,7 @@ class AuditLogOut(BaseModel):
     resource_id: str | None = None
     severity: str = "INFO"
     detail: str | None = None
+    channel: str | None = "web"
     created_at: datetime
     class Config: from_attributes = True
 
@@ -261,6 +262,7 @@ class TeamOut(BaseModel):
     name: str
     project_name: str
     description: str | None = None
+    jira_project_key: str | None = None
     created_by_id: Any = None
     created_at: datetime
     members: list[TeamMemberOut] = []
@@ -275,6 +277,35 @@ class TeamMemberAdd(BaseModel):
 class TeamChatRequest(BaseModel):
     message: str = Field(min_length=2, max_length=4000)
     top_k: int = Field(default=5, ge=1, le=10)
+    mode: str = Field(default="ai")
+
+
+class JiraIssueOut(BaseModel):
+    id: int
+    status: str
+    intent: str
+    title: str
+    assignee_hint: str | None = None
+    assignee_email: str | None = None
+    assignee_name: str | None = None
+    due_date: str | None = None
+    due_time: str | None = None
+    jira_key: str | None = None
+    jira_url: str | None = None
+    assigned_in_jira: bool = False
+    error_message: str | None = None
+    class Config: from_attributes = True
+
+
+class JiraStatusOut(BaseModel):
+    configured: bool
+    base_url: str
+    default_project_key: str
+    default_issue_type: str
+
+
+class JiraSettingsUpdate(BaseModel):
+    jira_project_key: str | None = None
 
 
 class TeamChatMessageOut(BaseModel):
@@ -285,6 +316,8 @@ class TeamChatMessageOut(BaseModel):
     message: str
     response: str
     citations: list[Citation] = []
+    message_type: str = "ai"
+    jira: JiraIssueOut | None = None
     created_at: datetime
     class Config: from_attributes = True
 

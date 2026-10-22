@@ -56,6 +56,7 @@ def list_audit_logs(
             resource_id=log.resource_id,
             severity=severity_val,
             detail=log.detail,
+            channel=getattr(log, "channel", "web") or "web",
             created_at=log.created_at
         )
         out.append(item)

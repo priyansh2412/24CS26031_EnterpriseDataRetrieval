@@ -3,7 +3,6 @@ from datetime import datetime, timedelta, timezone
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -11,18 +10,24 @@ from app.core.database import get_db
 from app.models import Role, User
 from app.services.access import has_permission
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
+import bcrypt
 
 
 def hash_password(value: str) -> str:
-    return pwd_context.hash(value)
+    salt = bcrypt.gensalt()
+    return bcrypt.hashpw(value.encode("utf-8"), salt).decode("utf-8")
 
 
-def verify_password(value: str, hashed: str | None) -> bool:
-    if not hashed:
+def verify_password(value: str, hashed: str) -> bool:
+    if not value or not hashed:
         return False
-    return pwd_context.verify(value, hashed)
+    try:
+        return bcrypt.checkpw(value.encode("utf-8"), hashed.encode("utf-8"))
+    except Exception:
+        return False
+
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
 
 def create_token(user: User) -> str:
@@ -47,7 +52,10 @@ def current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_
     try:
         user = db.query(User).filter(User.id == uuid.UUID(user_id_str)).first()
     except Exception:
-        user = db.query(User).filter(User.email == user_id_str).first()
+        try:
+            user = db.query(User).filter(User.id == int(user_id_str)).first()
+        except Exception:
+            user = db.query(User).filter(User.email == user_id_str).first()
 
     if not user or not user.is_active:
         raise HTTPException(status_code=401, detail="Inactive or non-existent user")
@@ -67,9 +75,11 @@ def require_role(*roles: Role | str):
     return checker
 
 
+
 def require_permission(permission: str):
     def checker(user: User = Depends(current_user)) -> User:
         if not has_permission(user, permission):
             raise HTTPException(status_code=403, detail="You do not have permission to perform this action")
         return user
     return checker
+

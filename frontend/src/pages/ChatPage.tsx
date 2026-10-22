@@ -22,10 +22,17 @@ import {
   Paperclip,
   Upload,
   Loader2,
+  BookOpen,
 } from "lucide-react";
 import { TempDocItem, request } from "../api";
 
-export type Citation = { document_id: number; document_name: string; chunk_index: number; text: string; score: number };
+export type Citation = {
+  document_id: number;
+  document_name: string;
+  chunk_index: number;
+  text: string;
+  score: number;
+};
 
 export interface ChatMessage {
   id: string;
@@ -74,7 +81,14 @@ export default function ChatPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [activeMatchIndex, setActiveMatchIndex] = useState(0);
 
-  // Temporary Document State (Scoped to current user's session only)
+  // Expanded Citation Accordions State (map of messageId-citIndex -> boolean)
+  const [expandedCitations, setExpandedCitations] = useState<{ [key: string]: boolean }>({});
+  // Highlighted citation state (for scrolling from inline badges)
+  const [highlightedCitation, setHighlightedCitation] = useState<string | null>(null);
+  // Toggle for Prompts Tray
+  const [showPromptsTray, setShowPromptsTray] = useState(false);
+
+  // Temporary Document State
   const [tempDocs, setTempDocs] = useState<TempDocItem[]>([]);
   const [uploadingDoc, setUploadingDoc] = useState(false);
   const [uploadNotice, setUploadNotice] = useState("");
@@ -83,6 +97,7 @@ export default function ChatPage() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const msgRefs = useRef<{ [id: string]: HTMLDivElement | null }>({});
+  const citationRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
 
   const fetchTempDocs = async () => {
     try {
@@ -109,7 +124,7 @@ export default function ChatPage() {
         method: "POST",
         body: formData,
       });
-      setUploadNotice(`"${file.name}" ingested into temporary Qdrant vectors! You can now ask questions about it.`);
+      setUploadNotice(`"${file.name}" ingested into temporary vectors! You can now query it.`);
       await fetchTempDocs();
     } catch (err) {
       setError((err as Error).message || "Failed to upload document");
@@ -156,30 +171,45 @@ export default function ChatPage() {
     }
   };
 
-  // On mount, load sessions list & temp docs
+  // On mount, check sessions, temp docs, and quick-ask from Dashboard
   useEffect(() => {
     fetchSessions(true);
     fetchTempDocs();
+
+    const storedQuickAsk = sessionStorage.getItem("atlas_quick_ask");
+    if (storedQuickAsk) {
+      sessionStorage.removeItem("atlas_quick_ask");
+      // Trigger send for stored query
+      setTimeout(() => {
+        handleSend(storedQuickAsk);
+      }, 250);
+    }
   }, []);
 
-  // Auto-scroll chat stream to bottom when new messages arrive (unless user is searching)
+  // Auto-scroll chat stream to bottom when new messages arrive
   useEffect(() => {
     if (!searchTerm.trim()) {
       chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }
   }, [messages, loading, searchTerm]);
 
-  // Compute search match messages
+  // Adjust textarea height automatically
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 160)}px`;
+    }
+  }, [inputQuestion]);
+
+  // Search match messages
   const searchMatches = searchTerm.trim()
     ? messages.filter((m) => m.text.toLowerCase().includes(searchTerm.toLowerCase()))
     : [];
 
-  // Reset active match index when search term changes
   useEffect(() => {
     setActiveMatchIndex(0);
   }, [searchTerm]);
 
-  // Smoothly scroll to the active search match message when search term or match index changes
   useEffect(() => {
     if (searchMatches.length > 0) {
       const validIndex = Math.min(activeMatchIndex, searchMatches.length - 1);
@@ -202,7 +232,7 @@ export default function ChatPage() {
     }
   };
 
-  // Dynamically load document names & analytics queries to build recommendation pills
+  // Dynamically load document names & analytics queries to build recommendation starter pills
   useEffect(() => {
     async function loadDynamicPrompts() {
       try {
@@ -230,20 +260,20 @@ export default function ChatPage() {
               generated.push({
                 id: `doc-${idx}-1`,
                 docName: doc.name,
-                title: cleanName,
+                title: "HR Guidelines",
                 query: `What is the leave policy in ${doc.name}?`,
               });
               generated.push({
                 id: `doc-${idx}-2`,
                 docName: doc.name,
-                title: cleanName,
+                title: "Work Policy",
                 query: `What are remote work guidelines in ${doc.name}?`,
               });
             } else if (cleanName.toLowerCase().includes("cyber") || cleanName.toLowerCase().includes("security")) {
               generated.push({
                 id: `doc-${idx}-3`,
                 docName: doc.name,
-                title: cleanName,
+                title: "Security Standards",
                 query: `What are key security rules in ${doc.name}?`,
               });
             } else {
@@ -266,7 +296,7 @@ export default function ChatPage() {
           );
         }
 
-        const unique = Array.from(new Map(generated.map((g) => [g.query, g])).values()).slice(0, 4);
+        const unique = Array.from(new Map(generated.map((g) => [g.query, g])).values()).slice(0, 6);
         setDynamicQueries(unique);
       } catch {
         setDynamicQueries([
@@ -279,7 +309,6 @@ export default function ChatPage() {
     loadDynamicPrompts();
   }, []);
 
-  // Handle starting a fresh new chat search session
   const handleNewChat = () => {
     setActiveSessionId(null);
     setMessages([]);
@@ -288,7 +317,6 @@ export default function ChatPage() {
     textareaRef.current?.focus();
   };
 
-  // Switch to a selected past search session
   const handleSelectSession = (sessionId: string) => {
     if (activeSessionId === sessionId) return;
     setActiveSessionId(sessionId);
@@ -296,7 +324,6 @@ export default function ChatPage() {
     loadSessionHistory(sessionId);
   };
 
-  // Delete a specific search session
   const handleDeleteSession = async (sessionId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     try {
@@ -316,7 +343,6 @@ export default function ChatPage() {
     }
   };
 
-  // Send a new query to current or new search session
   const handleSend = async (textToSend = inputQuestion) => {
     const queryText = textToSend.trim();
     if (!queryText || loading) return;
@@ -332,6 +358,7 @@ export default function ChatPage() {
     setInputQuestion("");
     setError("");
     setLoading(true);
+    setShowPromptsTray(false);
 
     try {
       const result = await request<{ query_log_id: number; answer: string; citations: Citation[]; session_id: string }>(
@@ -354,7 +381,6 @@ export default function ChatPage() {
 
       setMessages((prev) => [...prev, assistantMessage]);
 
-      // If it was a new chat session, register the newly generated session_id
       if (!activeSessionId && result.session_id) {
         setActiveSessionId(result.session_id);
       }
@@ -386,15 +412,56 @@ export default function ChatPage() {
     setTimeout(() => setCopiedId(null), 1600);
   };
 
-  // Extract unique referenced source file names from the latest assistant message
-  const lastAssistantMsg = [...messages].reverse().find((m) => m.sender === "assistant" && m.citations && m.citations.length > 0);
-  const referencedFileNames = Array.from(new Set(lastAssistantMsg?.citations?.map((c) => c.document_name) || []));
+  const toggleCitationAccordion = (key: string) => {
+    setExpandedCitations((prev) => ({
+      ...prev,
+      [key]: !prev[key],
+    }));
+  };
+
+  // Scroll to and expand citation when clicking inline [Source N] badge
+  const scrollToCitation = (messageId: string, citationIdx: number) => {
+    const key = `${messageId}-${citationIdx}`;
+    setExpandedCitations((prev) => ({ ...prev, [key]: true }));
+    setHighlightedCitation(key);
+    setTimeout(() => {
+      citationRefs.current[key]?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 50);
+    setTimeout(() => setHighlightedCitation(null), 2500);
+  };
+
+  // Markdown-friendly formatter with clickable [Source N] badges
+  const renderFormattedText = (messageId: string, text: string, citations?: Citation[]) => {
+    // Regex for [Source N], [Source: N], [N]
+    const parts = text.split(/(\[(?:Source\s*)?(?:\d+)\])/gi);
+
+    return parts.map((part, i) => {
+      const match = part.match(/\[(?:Source\s*)?(\d+)\]/i);
+      if (match) {
+        const num = parseInt(match[1], 10);
+        const citIdx = num - 1;
+        const exists = citations && citations[citIdx];
+
+        return (
+          <span
+            key={i}
+            className="inline-citation-badge"
+            onClick={() => exists && scrollToCitation(messageId, citIdx)}
+            title={exists ? `View Citation #${num}: ${citations[citIdx].document_name}` : `Citation [${num}]`}
+          >
+            {num}
+          </span>
+        );
+      }
+      return <span key={i}>{part}</span>;
+    });
+  };
 
   const activeSessionObj = sessions.find((s) => s.session_id === activeSessionId);
 
   return (
-    <div className="chat-page real-chatbot-layout">
-      {/* Real Chatbot Page Header */}
+    <div className="chat-page">
+      {/* Top Header */}
       <header className="page-heading chatbot-top-header">
         <div>
           <div className="eyebrow chat-eyebrow">
@@ -408,10 +475,10 @@ export default function ChatPage() {
         <div className="header-actions">
           {/* Header Search Box with Match Navigation */}
           <div className="header-search-box">
-            <Search size={15} className="search-icon" />
+            <Search size={14} style={{ color: "var(--text-muted)" }} />
             <input
               type="text"
-              placeholder="Search in active chat..."
+              placeholder="Search in chat..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="header-search-input"
@@ -438,7 +505,7 @@ export default function ChatPage() {
             )}
           </div>
 
-          <div className="online-indicator-badge chat-status-badge">
+          <div className="chat-status-badge">
             <Zap size={13} />
             <span>RAG Engine Connected</span>
           </div>
@@ -463,54 +530,74 @@ export default function ChatPage() {
             </div>
 
             {sessions.length === 0 ? (
-              <div className="empty-sessions-note">
+              <div className="empty-state" style={{ padding: "24px 12px" }}>
                 <MessageSquare size={24} />
-                <p>No past search sessions yet. Click "+ New Search Session" to begin!</p>
+                <strong style={{ fontSize: "13px" }}>No sessions yet</strong>
+                <p style={{ fontSize: "12px" }}>Click "+ New Search Session" to begin inquiry.</p>
               </div>
             ) : (
-              <div className="sessions-items-list">
-                {sessions.map((sess) => {
-                  const isActive = activeSessionId === sess.session_id;
-                  return (
-                    <div
-                      key={sess.session_id}
-                      className={`session-item-card ${isActive ? "active" : ""}`}
-                      onClick={() => handleSelectSession(sess.session_id)}
-                    >
-                      <MessageSquare size={16} className="session-card-icon" />
-                      <div className="session-card-info">
-                        <strong className="session-card-title">{sess.title}</strong>
-                        <div className="session-card-meta">
-                          <span className="session-card-date">{sess.created_at}</span>
-                          <span className="session-card-badge">{sess.message_count} msgs</span>
-                        </div>
+              sessions.map((sess) => {
+                const isActive = activeSessionId === sess.session_id;
+                return (
+                  <div
+                    key={sess.session_id}
+                    className={`session-item-card ${isActive ? "active" : ""}`}
+                    onClick={() => handleSelectSession(sess.session_id)}
+                  >
+                    <MessageSquare size={16} className="session-card-icon" />
+                    <div className="session-card-info">
+                      <strong className="session-card-title">{sess.title}</strong>
+                      <div className="session-card-meta">
+                        <span className="session-card-date">{sess.created_at}</span>
+                        <span className="session-card-badge">{sess.message_count} msgs</span>
                       </div>
-                      <button
-                        className="session-delete-btn"
-                        onClick={(e) => handleDeleteSession(sess.session_id, e)}
-                        title="Delete session"
-                      >
-                        <Trash2 size={13} />
-                      </button>
                     </div>
-                  );
-                })}
-              </div>
+                    <button
+                      className="session-delete-btn"
+                      onClick={(e) => handleDeleteSession(sess.session_id, e)}
+                      title="Delete session"
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
+                );
+              })
             )}
           </div>
         </aside>
 
-        {/* Right Panel: Main Chatbot Container */}
+        {/* Right Panel: Main Chatbot Feed & Glowing Input */}
         <div className="chatbot-spacious-container">
-          {/* Chat Feed Area */}
+          {/* Chat Feed Scroll Area */}
           <div className="chat-feed-scroll">
             {messages.length === 0 ? (
               <div className="chatbot-welcome-state">
                 <div className="welcome-avatar-glow">
-                  <Bot size={36} />
+                  <Bot size={34} />
                 </div>
-                <h2>{activeSessionObj ? activeSessionObj.title : "Start a New Search Session"}</h2>
-                <p>Ask questions grounded directly on your organization’s uploaded documents and handbooks.</p>
+                <h2>{activeSessionObj ? activeSessionObj.title : "What would you like to know today?"}</h2>
+                <p>
+                  Ask any question grounded directly across your company handbooks, compliance policies, and uploaded files.
+                </p>
+
+                {/* Starter Question Chips */}
+                {dynamicQueries.length > 0 && (
+                  <div className="welcome-starters-grid">
+                    {dynamicQueries.map((dq) => (
+                      <div
+                        key={dq.id}
+                        className="starter-chip-card"
+                        onClick={() => handleSend(dq.query)}
+                      >
+                        <Compass size={18} style={{ color: "var(--accent)", flexShrink: 0 }} />
+                        <div>
+                          <strong>{dq.title}</strong>
+                          <span>{dq.query}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             ) : (
               <div className="chat-stream-list">
@@ -525,9 +612,7 @@ export default function ChatPage() {
                       ref={(el) => {
                         msgRefs.current[msg.id] = el;
                       }}
-                      className={`chat-message-row ${msg.sender === "user" ? "user-row" : "assistant-row"} ${
-                        isMatch ? "search-match-row" : ""
-                      }`}
+                      className={`chat-message-row ${msg.sender === "user" ? "user-row" : "assistant-row"}`}
                     >
                       <div className={`message-avatar ${msg.sender}`}>
                         {msg.sender === "user" ? <User size={16} /> : <Bot size={18} />}
@@ -535,29 +620,86 @@ export default function ChatPage() {
 
                       <div className="message-content-wrapper">
                         <div className="message-header-meta">
-                          <strong className="sender-name">
+                          <span className="sender-name">
                             {msg.sender === "user" ? "You" : "Atlas AI Assistant"}
-                          </strong>
+                          </span>
                           <span className="timestamp-tag">{msg.timestamp}</span>
                         </div>
 
-                        <div
-                          className={`message-bubble ${
-                            isActiveTarget ? "search-active-target" : isMatch ? "search-highlight-bubble" : ""
-                          }`}
-                        >
-                          <div className="bubble-text">{msg.text}</div>
+                        <div className="message-bubble" style={{ border: isActiveTarget ? "2px solid var(--accent)" : undefined }}>
+                          {/* Message Text with Formatted Inline Citations */}
+                          <div className="bubble-text">
+                            {msg.sender === "assistant"
+                              ? renderFormattedText(msg.id, msg.text, msg.citations)
+                              : msg.text}
+                          </div>
 
-                          {/* Assistant Actions (Copy & Feedback) */}
+                          {/* Sources Accordion Row (Expandable Citation Cards) */}
+                          {msg.sender === "assistant" && msg.citations && msg.citations.length > 0 && (
+                            <div className="sources-evidence-section">
+                              <div className="sources-evidence-header">
+                                <BookOpen size={13} style={{ color: "var(--accent)" }} />
+                                <span>VERIFIED CITATIONS ({msg.citations.length})</span>
+                              </div>
+
+                              <div className="citations-cards-stack">
+                                {msg.citations.map((citation, citIdx) => {
+                                  const cardKey = `${msg.id}-${citIdx}`;
+                                  const isExpanded = Boolean(expandedCitations[cardKey]);
+                                  const matchPct = Math.round(citation.score * 100);
+                                  const isHighlighted = highlightedCitation === cardKey;
+
+                                  return (
+                                    <div
+                                      key={cardKey}
+                                      ref={(el) => {
+                                        citationRefs.current[cardKey] = el;
+                                      }}
+                                      className={`citation-card-item ${isHighlighted ? "highlighted" : ""}`}
+                                    >
+                                      <div
+                                        className="citation-card-head"
+                                        onClick={() => toggleCitationAccordion(cardKey)}
+                                      >
+                                        <div className="citation-card-left">
+                                          <div className="citation-num-pill">{citIdx + 1}</div>
+                                          <div>
+                                            <strong className="citation-doc-title">{citation.document_name}</strong>
+                                            <span style={{ fontSize: "11px", color: "var(--text-muted)", marginLeft: "8px" }}>
+                                              Chunk {citation.chunk_index + 1}
+                                            </span>
+                                          </div>
+                                        </div>
+
+                                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                                          <span className="citation-score-badge">{matchPct}% match</span>
+                                          {isExpanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+                                        </div>
+                                      </div>
+
+                                      {isExpanded && (
+                                        <div className="citation-card-body">
+                                          <p style={{ margin: 0 }}>{citation.text}</p>
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Assistant Actions (Copy & Helpful Feedback) */}
                           {msg.sender === "assistant" && (
                             <div className="bubble-actions">
-                              {msg.query_log_id && (
+                              {msg.query_log_id ? (
                                 <div className="feedback">
                                   <span>Helpful?</span>
                                   <button
                                     className={`feedback-btn ${msg.feedbackGiven === true ? "selected" : ""}`}
                                     onClick={() => handleFeedback(msg.id, msg.query_log_id!, true)}
                                     aria-label="Helpful"
+                                    title="Mark response as helpful"
                                   >
                                     <ThumbsUp size={13} />
                                   </button>
@@ -565,15 +707,19 @@ export default function ChatPage() {
                                     className={`feedback-btn ${msg.feedbackGiven === false ? "selected" : ""}`}
                                     onClick={() => handleFeedback(msg.id, msg.query_log_id!, false)}
                                     aria-label="Not helpful"
+                                    title="Mark response as not helpful"
                                   >
                                     <ThumbsDown size={13} />
                                   </button>
                                 </div>
+                              ) : (
+                                <div />
                               )}
 
                               <button
                                 className="btn-copy-bubble"
                                 onClick={() => copyText(msg.id, msg.text)}
+                                title="Copy answer to clipboard"
                               >
                                 {copiedId === msg.id ? <Check size={13} /> : <Copy size={13} />}
                                 <span>{copiedId === msg.id ? "Copied" : "Copy"}</span>
@@ -598,7 +744,7 @@ export default function ChatPage() {
                           <span />
                           <span />
                         </div>
-                        <span>Atlas is retrieving vector chunks & generating answer…</span>
+                        <span>Atlas is retrieving vector chunks & synthesizing answer…</span>
                       </div>
                     </div>
                   </div>
@@ -609,144 +755,143 @@ export default function ChatPage() {
             <div ref={chatEndRef} />
           </div>
 
-          {/* Error Alert */}
-          {error && <div className="alert-banner error margin-bottom">{error}</div>}
+          {/* Alerts / Error Notices */}
+          {error && <div className="alert-banner error margin-bottom" style={{ margin: "0 36px 12px" }}>{error}</div>}
 
-          {/* Success / Status Notice */}
           {uploadNotice && (
-            <div className="alert-banner success margin-bottom" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div
+              className="alert-banner success"
+              style={{ margin: "0 36px 12px", display: "flex", alignItems: "center", justifyContent: "space-between" }}
+            >
               <span>{uploadNotice}</span>
-              <button type="button" onClick={() => setUploadNotice("")} style={{ background: "none", border: "none", cursor: "pointer", color: "inherit" }}>
+              <button type="button" onClick={() => setUploadNotice("")}>
                 <X size={14} />
               </button>
             </div>
           )}
 
-          {/* Sticky Input Bar at Bottom */}
+          {/* =========================================================
+              REFERENCE 3: GLOWING GLASS CHAT INPUT
+              ========================================================= */}
           <div className="chatbot-input-bar-wrap">
-            {/* Active Temporary Documents Pills */}
+            {/* Active Temporary Documents Chip */}
             {tempDocs.length > 0 && (
               <div className="temp-docs-chat-badge-bar">
-                <div className="temp-docs-badge-label">
-                  <Sparkles size={13} style={{ color: "#2563eb" }} />
-                  <span>Your Attached Temporary Document (Private to this chat):</span>
-                </div>
-                <div className="temp-docs-chips-list">
-                  {tempDocs.map((doc) => (
-                    <div key={doc.document_id} className="temp-doc-active-chip">
-                      <FileText size={13} className="chip-file-icon" />
-                      <span className="chip-file-name" title={doc.name}>{doc.name}</span>
-                      <span className="chip-chunks-count">({doc.chunk_count} chunks in Qdrant)</span>
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteTempDoc(doc.document_id)}
-                        className="chip-remove-btn"
-                        title="Remove document from temporary Qdrant vectors"
-                      >
-                        <X size={13} />
-                      </button>
-                    </div>
-                  ))}
-                </div>
+                <Sparkles size={13} style={{ color: "var(--accent)" }} />
+                <span style={{ fontSize: "12px", color: "var(--text-muted)" }}>Attached file (private to this session):</span>
+                {tempDocs.map((doc) => (
+                  <div key={doc.document_id} className="temp-doc-active-chip">
+                    <FileText size={12} />
+                    <span>{doc.name}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteTempDoc(doc.document_id)}
+                      className="chip-remove-btn"
+                      title="Remove temporary document"
+                    >
+                      <X size={12} />
+                    </button>
+                  </div>
+                ))}
               </div>
             )}
 
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                handleSend();
-              }}
-              className="chatbot-input-form"
-            >
-              {/* Hidden file input */}
-              <input
-                type="file"
-                ref={fileInputRef}
-                style={{ display: "none" }}
-                accept=".pdf,.docx,.txt,.md,.csv,.json,.log,.pptx"
-                onChange={handleFileUpload}
-              />
-              <button
-                type="button"
-                className="chatbot-attach-btn"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={uploadingDoc || loading}
-                title="Upload document to ingest temporarily into Qdrant for this chat"
-              >
-                {uploadingDoc ? <Loader2 size={18} className="spin-animate" /> : <Paperclip size={18} />}
-              </button>
-
-              <textarea
-                ref={textareaRef}
-                rows={1}
-                value={inputQuestion}
-                onChange={(e) => setInputQuestion(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    handleSend();
-                  }
-                }}
-                placeholder={
-                  tempDocs.length > 0
-                    ? `Ask Atlas AI about "${tempDocs[0].name}" or your enterprise documents...`
-                    : "Ask Atlas AI anything about your enterprise documents..."
-                }
-                className="chatbot-sticky-textarea"
-              />
-              <button
-                type="submit"
-                className="chatbot-send-btn"
-                disabled={loading || !inputQuestion.trim()}
-                title="Send question"
-              >
-                <ArrowUp size={18} />
-              </button>
-            </form>
-
-            {/* Referenced Source Files Small Section */}
-            {referencedFileNames.length > 0 && (
-              <div className="referenced-sources-small-bar">
-                <div className="sources-small-header">
-                  <FileText size={13} />
-                  <span>REFERENCED SOURCE FILES:</span>
-                </div>
-                <div className="sources-small-tags">
-                  {referencedFileNames.map((fileName, idx) => (
-                    <span key={`ref-file-${idx}`} className="source-file-pill">
-                      <FileText size={12} className="pill-icon" />
-                      <span className="pill-name">{fileName}</span>
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Dynamic Recommendations Section */}
-            {dynamicQueries.length > 0 && (
-              <div className="dynamic-recommendations-wrapper recommendations-below-input">
-                <div className="recommendations-header">
-                  <Compass size={13} />
-                  <span>DYNAMIC SUGGESTED QUERIES (FROM YOUR DB)</span>
-                </div>
-                <div className="recommendations-scroll-row">
+            {/* Prompts Tray Popover */}
+            {showPromptsTray && dynamicQueries.length > 0 && (
+              <div className="prompts-popover-tray">
+                <div className="prompts-tray-header">Suggested Prompts</div>
+                <div className="prompts-tray-items">
                   {dynamicQueries.map((dq) => (
                     <button
                       key={dq.id}
-                      className="recommendation-chip-btn"
+                      type="button"
+                      className="prompt-tray-item"
                       onClick={() => handleSend(dq.query)}
-                      disabled={loading}
                     >
-                      <FileText size={13} className="chip-icon" />
-                      <div className="chip-content">
-                        <strong className="chip-title">{dq.title}</strong>
-                        <span className="chip-query-text">{dq.query}</span>
-                      </div>
+                      {dq.query}
                     </button>
                   ))}
                 </div>
               </div>
             )}
+
+            {/* Glowing Glass Input Container (Reference 3) */}
+            <div className="glowing-glass-input-wrapper">
+              <div className="glowing-glass-input-inner">
+                {/* Auto-growing Textarea */}
+                <textarea
+                  ref={textareaRef}
+                  rows={1}
+                  value={inputQuestion}
+                  onChange={(e) => setInputQuestion(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSend();
+                    }
+                  }}
+                  placeholder={
+                    tempDocs.length > 0
+                      ? `Ask Atlas AI about "${tempDocs[0].name}" or enterprise files...`
+                      : "Ask Atlas AI anything about your enterprise documents... (Enter to send, Shift+Enter for newline)"
+                  }
+                  className="chatbot-sticky-textarea"
+                />
+
+                {/* Bottom Action Toolbar inside the glowing box (Reference 3) */}
+                <div className="glowing-input-toolbar">
+                  <div className="toolbar-left-group">
+                    {/* "Prompts" Pill (Reference 3) */}
+                    <button
+                      type="button"
+                      className="prompts-pill-btn"
+                      onClick={() => setShowPromptsTray(!showPromptsTray)}
+                      title="Toggle suggested prompts"
+                    >
+                      <Sparkles size={14} />
+                      <span>Prompts</span>
+                    </button>
+
+                    {/* Hidden file input */}
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      style={{ display: "none" }}
+                      accept=".pdf,.docx,.txt,.md,.csv,.json,.log,.pptx"
+                      onChange={handleFileUpload}
+                    />
+
+                    {/* Paperclip Attach Icon (Reference 3) */}
+                    <button
+                      type="button"
+                      className="chatbot-attach-btn"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={uploadingDoc || loading}
+                      title="Attach temporary file to query with Qdrant vectors"
+                    >
+                      {uploadingDoc ? <Loader2 size={16} className="animate-spin" /> : <Paperclip size={16} />}
+                    </button>
+
+                    {/* Grounded Status Pill */}
+                    <div className="mic-status-pill">
+                      <Zap size={11} style={{ color: "var(--accent)" }} />
+                      <span>Grounded RAG</span>
+                    </div>
+                  </div>
+
+                  {/* Round Send Button (Reference 3) */}
+                  <button
+                    type="button"
+                    className="round-send-btn"
+                    onClick={() => handleSend()}
+                    disabled={loading || !inputQuestion.trim()}
+                    title="Send message (Enter)"
+                  >
+                    {loading ? <Loader2 size={16} className="animate-spin" /> : <ArrowUp size={18} />}
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>

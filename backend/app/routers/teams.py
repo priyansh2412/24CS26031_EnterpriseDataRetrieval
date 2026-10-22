@@ -3,17 +3,19 @@ import json
 import shutil
 import uuid
 from typing import Any
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status, UploadFile, File
 from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.security import get_current_user
-from app.models import AuditLog, Document, LogSeverity, Team, TeamChatMessage, TeamMember, User
-from app.schemas import Citation, TeamChatMessageOut, TeamCreate, TeamMemberAdd, TeamMemberOut, TeamOut
+from app.models import AuditLog, Document, JiraIssueLink, LogSeverity, Team, TeamChatMessage, TeamMember, User
+from app.schemas import Citation, JiraIssueOut, TeamChatMessageOut, TeamCreate, TeamMemberAdd, TeamMemberOut, TeamOut
+from app.services.access import log_access
 from app.services.citation_service import format_context_prompt
 from app.services.ingestion_service import ingest_temporary_document, delete_temporary_document
 from app.services.llm import generate_answer
 from app.services.retrieval_service import retrieve_authorized_chunks
+from app.services.team_intel_service import process_message_for_jira
 
 router = APIRouter(prefix="/api/teams", tags=["teams"])
 
@@ -79,6 +81,7 @@ def list_teams(db: Session = Depends(get_db), current_user: User = Depends(get_c
             name=team.name,
             project_name=team.project_name,
             description=team.description,
+            jira_project_key=team.jira_project_key,
             created_by_id=team.created_by_id,
             created_at=team.created_at,
             members=members_out
@@ -197,6 +200,7 @@ def add_team_member(team_id: int, payload: TeamMemberAdd, db: Session = Depends(
         name=team.name,
         project_name=team.project_name,
         description=team.description,
+        jira_project_key=team.jira_project_key,
         created_by_id=team.created_by_id,
         created_at=team.created_at,
         members=members_out
@@ -255,6 +259,17 @@ def get_team_chat_history(team_id: int, db: Session = Depends(get_db), current_u
             raise HTTPException(status_code=403, detail="Access denied: you are not a member of this team")
 
     messages = db.query(TeamChatMessage).filter(TeamChatMessage.team_id == team_id).order_by(TeamChatMessage.created_at.asc()).limit(100).all()
+    msg_ids = [m.id for m in messages]
+    jira_links = db.query(JiraIssueLink).filter(JiraIssueLink.message_id.in_(msg_ids)).all() if msg_ids else []
+    jira_map = {j.message_id: j for j in jira_links}
+
+    # Fetch assignee names in single query
+    assignee_ids = [j.assignee_user_id for j in jira_links if j.assignee_user_id]
+    user_map = {}
+    if assignee_ids:
+        users = db.query(User).filter(User.id.in_(assignee_ids)).all()
+        user_map = {u.id: (u.display_name or u.email.split("@")[0]) for u in users}
+
     out = []
     for msg in messages:
         try:
@@ -262,6 +277,27 @@ def get_team_chat_history(team_id: int, db: Session = Depends(get_db), current_u
             citations = [Citation(**c) for c in citations_raw]
         except Exception:
             citations = []
+
+        j_link = jira_map.get(msg.id)
+        j_out = None
+        if j_link:
+            assignee_name = user_map.get(j_link.assignee_user_id) if j_link.assignee_user_id else None
+            j_out = JiraIssueOut(
+                id=j_link.id,
+                status=j_link.status,
+                intent=j_link.intent,
+                title=j_link.title,
+                assignee_hint=j_link.assignee_hint,
+                assignee_email=j_link.assignee_email,
+                assignee_name=assignee_name,
+                due_date=j_link.due_date,
+                due_time=j_link.due_time,
+                jira_key=j_link.jira_key,
+                jira_url=j_link.jira_url,
+                assigned_in_jira=j_link.assigned_in_jira,
+                error_message=j_link.error_message
+            )
+
         out.append(TeamChatMessageOut(
             id=msg.id,
             team_id=msg.team_id,
@@ -270,16 +306,26 @@ def get_team_chat_history(team_id: int, db: Session = Depends(get_db), current_u
             message=msg.message,
             response=msg.response,
             citations=citations,
+            message_type=getattr(msg, "message_type", "ai") or "ai",
+            jira=j_out,
             created_at=msg.created_at
         ))
     return out
 
 
 @router.post("/{team_id}/chat", response_model=TeamChatMessageOut)
-def send_team_chat_message(team_id: int, payload: dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def send_team_chat_message(
+    team_id: int,
+    payload: dict,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
     message_text = payload.get("message")
     if not message_text or len(message_text.strip()) < 2:
         raise HTTPException(status_code=400, detail="Message is required")
+
+    mode = str(payload.get("mode", "ai")).strip().lower()
 
     team = db.get(Team, team_id)
     if not team:
@@ -296,7 +342,47 @@ def send_team_chat_message(team_id: int, payload: dict, db: Session = Depends(ge
 
     eff_tenant = str(team.tenant_id or current_user.tenant_id or settings.default_tenant_id)
 
-    # 1. Retrieve knowledge chunks grounded for enterprise project
+    if mode == "team":
+        # Pure team message: skip RAG retrieval & generation completely
+        team_msg = TeamChatMessage(
+            team_id=team_id,
+            user_id=current_user.id,
+            user_email=current_user.email,
+            message=message_text,
+            response="",
+            citations_json="[]",
+            message_type="team"
+        )
+        db.add(team_msg)
+        db.flush()
+
+        log_access(
+            db=db,
+            user=current_user,
+            action="team_chat_message",
+            resource_type="team_chat",
+            resource_id=str(team_id),
+            detail=f"Team message in '{team.name}' (Project: {team.project_name})",
+            channel="web"
+        )
+        db.commit()
+
+        background_tasks.add_task(process_message_for_jira, team_msg.id)
+
+        return TeamChatMessageOut(
+            id=team_msg.id,
+            team_id=team_id,
+            user_id=current_user.id,
+            user_email=current_user.email,
+            message=message_text,
+            response="",
+            citations=[],
+            message_type="team",
+            jira=None,
+            created_at=team_msg.created_at
+        )
+
+    # mode == "ai" (default Ask AI behavior)
     raw_chunks = retrieve_authorized_chunks(
         question=message_text,
         db=db,
@@ -319,7 +405,8 @@ def send_team_chat_message(team_id: int, payload: dict, db: Session = Depends(ge
         user_email=current_user.email,
         message=message_text,
         response=answer,
-        citations_json=citations_json
+        citations_json=citations_json,
+        message_type="ai"
     )
     db.add(team_msg)
     db.flush()
@@ -343,6 +430,8 @@ def send_team_chat_message(team_id: int, payload: dict, db: Session = Depends(ge
         message=message_text,
         response=answer,
         citations=citations,
+        message_type="ai",
+        jira=None,
         created_at=team_msg.created_at
     )
 

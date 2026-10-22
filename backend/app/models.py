@@ -9,13 +9,15 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    Float,
     String,
     Text,
+    Uuid as UUID,
     func
 )
-from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.database import Base
+
 
 
 class Role(str, enum.Enum):
@@ -214,6 +216,7 @@ class QueryLog(Base):
     response: Mapped[str] = mapped_column(Text)
     retrieved_document_ids: Mapped[str] = mapped_column(Text, default="[]")
     citations_json: Mapped[str | None] = mapped_column(Text, nullable=True, default="[]")
+    channel: Mapped[str] = mapped_column(String(20), default="web", server_default="web", nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
 
@@ -237,6 +240,7 @@ class AuditLog(Base):
     resource_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
     severity: Mapped[str] = mapped_column(String(20), default="INFO", index=True)
     detail: Mapped[str | None] = mapped_column(Text, nullable=True)
+    channel: Mapped[str] = mapped_column(String(20), default="web", server_default="web", nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), index=True)
 
 
@@ -247,6 +251,7 @@ class Team(Base):
     name: Mapped[str] = mapped_column(String(100), index=True)
     project_name: Mapped[str] = mapped_column(String(150), index=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    jira_project_key: Mapped[str | None] = mapped_column(String(50), nullable=True)
     created_by_id: Mapped[Any] = mapped_column(UUID(as_uuid=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
@@ -269,7 +274,37 @@ class TeamChatMessage(Base):
     message: Mapped[str] = mapped_column(Text)
     response: Mapped[str] = mapped_column(Text)
     citations_json: Mapped[str | None] = mapped_column(Text, nullable=True, default="[]")
+    message_type: Mapped[str] = mapped_column(String(20), default="ai", server_default="ai")
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    jira_link = relationship("JiraIssueLink", back_populates="message", uselist=False, cascade="all, delete-orphan")
+
+
+class JiraIssueLink(Base):
+    __tablename__ = "jira_issue_links"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    tenant_id: Mapped[str] = mapped_column(String(64), index=True)
+    team_id: Mapped[int] = mapped_column(Integer, ForeignKey("teams.id", ondelete="CASCADE"), index=True)
+    message_id: Mapped[int] = mapped_column(Integer, ForeignKey("team_chat_messages.id", ondelete="CASCADE"), unique=True, index=True)
+    intent: Mapped[str] = mapped_column(String(20))
+    title: Mapped[str] = mapped_column(String(255))
+    assignee_hint: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    assignee_user_id: Mapped[Any] = mapped_column(UUID(as_uuid=True), nullable=True)
+    assignee_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    due_date: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    due_time: Mapped[str | None] = mapped_column(String(5), nullable=True)
+    confidence: Mapped[float] = mapped_column(Float, default=1.0)
+    status: Mapped[str] = mapped_column(String(20), default="pending", index=True)
+    jira_key: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    jira_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    assigned_in_jira: Mapped[bool] = mapped_column(Boolean, default=False)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_by_id: Mapped[Any] = mapped_column(UUID(as_uuid=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
+
+    team = relationship("Team")
+    message = relationship("TeamChatMessage", back_populates="jira_link")
 
 
 class EnterpriseAdmin(Base):
@@ -285,3 +320,32 @@ class EnterpriseAdmin(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
 
     user = relationship("User", foreign_keys=[user_id])
+
+
+class UserPhoneLink(Base):
+    __tablename__ = "user_phone_links"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[Any] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    tenant_id: Mapped[Any] = mapped_column(UUID(as_uuid=True), nullable=True, index=True)
+    wa_jid: Mapped[str] = mapped_column(String(100), unique=True, index=True)
+    wa_display_name: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    status: Mapped[str] = mapped_column(String(20), default="active")  # "active" or "revoked"
+    verified_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    user = relationship("User", foreign_keys=[user_id])
+
+
+class WhatsAppLinkCode(Base):
+    __tablename__ = "whatsapp_link_codes"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[Any] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    tenant_id: Mapped[Any] = mapped_column(UUID(as_uuid=True), nullable=True)
+    code_hash: Mapped[str] = mapped_column(String(64), index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    user = relationship("User", foreign_keys=[user_id])
+

@@ -77,6 +77,17 @@ export default function EnterprisesPage({ currentUser }: EnterprisesPageProps) {
     loadEnterprises();
   }, []);
 
+  // Close modal on Escape
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setShowAddModal(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
   const handleOpenModal = () => {
     setEnterpriseName("");
     setAdminEmail("");
@@ -204,7 +215,7 @@ export default function EnterprisesPage({ currentUser }: EnterprisesPageProps) {
             Manage connected enterprise portals, provision admin credentials, and toggle real-time account activation.
           </p>
         </div>
-        <button className="btn-primary ent-add-btn" onClick={handleOpenModal}>
+        <button className="btn-pill btn-primary ent-add-btn" onClick={handleOpenModal}>
           <Plus size={16} /> Add Connected Enterprise
         </button>
       </div>
@@ -472,8 +483,9 @@ export default function EnterprisesPage({ currentUser }: EnterprisesPageProps) {
         </div>
       ) : (
         /* TABLE CARD STRUCTURE */
-        <div className="ent-table-card">
-          <table className="data-table ent-data-table">
+        <div className="table-card">
+          <div className="table-scroll-container">
+            <table className="enterprise-table">
             <thead>
               <tr>
                 <th>ENTERPRISE NAME</th>
@@ -568,6 +580,7 @@ export default function EnterprisesPage({ currentUser }: EnterprisesPageProps) {
               })}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 
