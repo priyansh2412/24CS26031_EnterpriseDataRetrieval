@@ -15,11 +15,15 @@ import {
   FolderKanban,
   UserCheck,
   MessageCircle,
+  Menu,
+  X,
+  Sparkles,
 } from "lucide-react";
 import ChatPage from "./pages/ChatPage";
 import DocumentsPage from "./pages/DocumentsPage";
 import AnalyticsPage from "./pages/AnalyticsPage";
 import LoginPage from "./pages/LoginPage";
+import HomePage from "./pages/HomePage";
 import DashboardPage from "./pages/DashboardPage";
 import UserManagementPage from "./pages/UserManagementPage";
 import AuditLogsPage from "./pages/AuditLogsPage";
@@ -48,7 +52,7 @@ const NAV_ITEMS: NavRoute[] = [
   { id: "analytics", path: "/analytics", label: "Analytics & Insights", icon: BarChart3, roles: ["admin", "hr", "manager", "finance"] },
   { id: "users", path: "/users", label: "User Management", icon: Users },
   { id: "audit-logs", path: "/audit-logs", label: "Hierarchical Audit Logs", icon: Activity },
-  { id: "linked-devices", path: "/linked-devices", label: "Linked Devices", icon: MessageCircle },
+  { id: "linked-devices", path: "/linked-devices", label: "Linked WhatsApp Devices", icon: MessageCircle },
   { id: "settings", path: "/settings", label: "Workspace Settings", icon: Settings },
   { id: "profile", path: "/profile", label: "Admin Profile", icon: UserCheck },
 ];
@@ -58,6 +62,7 @@ export default function App() {
   const [authenticated, setAuthenticated] = useState(Boolean(token()));
   const [user, setUser] = useState<UserProfile | null>(null);
   const [currentPath, setCurrentPath] = useState(window.location.pathname || "/dashboard");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">(() => {
     return (localStorage.getItem("rag_theme") as "light" | "dark") || "light";
   });
@@ -95,6 +100,7 @@ export default function App() {
 
   useEffect(() => {
     localStorage.setItem("rag_theme", theme);
+    document.body.className = `${theme}-theme`;
   }, [theme]);
 
   const toggleTheme = () => {
@@ -120,6 +126,7 @@ export default function App() {
   const navigate = (path: string) => {
     window.history.pushState({}, "", path);
     setCurrentPath(path);
+    setSidebarOpen(false);
   };
 
   // Direct standalone route for /enterprises System Portal
@@ -139,7 +146,26 @@ export default function App() {
   }
 
   if (!authenticated) {
-    return <LoginPage onSuccess={() => setAuthenticated(true)} />;
+    return (
+      <HomePage
+        onSuccess={() => {
+          setAuthenticated(true);
+          fetchUserProfile();
+        }}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+      />
+    );
+  }
+
+  if (currentPath === "/home") {
+    return (
+      <HomePage
+        onSuccess={() => navigate("/dashboard")}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+      />
+    );
   }
 
   const userRole = user?.role_key || user?.role || "employee";
@@ -157,8 +183,7 @@ export default function App() {
       if (item.hideForAdmin) return false;
       return true;
     } else {
-      // Non-admins (rank other than 1): only dashboard, chat, teams, and profile
-      return ["dashboard", "chat", "teams", "profile"].includes(item.id);
+      return ["dashboard", "chat", "teams", "linked-devices", "profile"].includes(item.id);
     }
   }).map((item) => {
     if (item.id === "profile") {
@@ -173,20 +198,39 @@ export default function App() {
   const activeNavItem = NAV_ITEMS.find((item) => item.path === currentPath);
   const isAuthorized = isAdmin
     ? currentPath !== "/teams"
-    : ["/dashboard", "/chat", "/teams", "/profile", "/"].includes(currentPath);
+    : ["/dashboard", "/chat", "/teams", "/linked-devices", "/profile", "/"].includes(currentPath);
 
   return (
     <main className={`app-shell ${theme}-theme`}>
-      {/* Enterprise Sidebar */}
-      <aside className="sidebar">
+      {/* Decorative blurred background ambient blobs */}
+      <div className="ambient-bg-glow ambient-blob-1" />
+      <div className="ambient-bg-glow ambient-blob-2" />
+
+      {/* Mobile Backdrop Overlay */}
+      <div
+        className={`sidebar-backdrop ${sidebarOpen ? "mobile-open" : ""}`}
+        onClick={() => setSidebarOpen(false)}
+        aria-hidden="true"
+      />
+
+      {/* Modern B2B SaaS Sidebar */}
+      <aside className={`sidebar ${sidebarOpen ? "mobile-open" : ""}`}>
         <div className="sidebar-top">
           <div className="brand-mark">
-            <ShieldCheck size={20} />
+            <ShieldCheck size={22} />
           </div>
           <div className="brand-copy">
             <strong>Atlas Enterprise</strong>
             <span>{user?.enterprise_name || "Knowledge Workspace"}</span>
           </div>
+          <button
+            className="btn-icon mobile-menu-btn"
+            style={{ marginLeft: "auto", display: sidebarOpen ? "grid" : "none" }}
+            onClick={() => setSidebarOpen(false)}
+            title="Close navigation"
+          >
+            <X size={18} />
+          </button>
         </div>
 
         <div className="workspace-label">
@@ -213,20 +257,20 @@ export default function App() {
 
         <div className="sidebar-bottom">
           <div className="secure-note">
-            <ShieldCheck size={16} />
-            <span>Grounded Retrieval Augmented Generation (RAG)</span>
+            <ShieldCheck size={15} />
+            <span>Grounded Enterprise RAG (v2.4)</span>
           </div>
 
           <div
-            className="profile"
+            className="profile-card"
             onClick={() => navigate("/profile")}
             style={{ cursor: "pointer" }}
-            title="Click to view Profile & Change Password"
+            title="Click to view Profile & Security Settings"
           >
             <div className="avatar">{user?.email?.[0]?.toUpperCase() || "A"}</div>
             <div className="profile-details">
-              <strong>{user?.email?.split("@")[0] || "User"}</strong>
-              <span className={`role-badge ${userRole}`}>
+              <span className="profile-name">{user?.email?.split("@")[0] || "User"}</span>
+              <span className="role-badge">
                 Rank {user?.rank_level ?? 5}: {userRole}
               </span>
             </div>
@@ -240,7 +284,7 @@ export default function App() {
               aria-label="Sign Out"
               className="sign-out-btn"
             >
-              <LogOut size={17} />
+              <LogOut size={16} />
             </button>
           </div>
         </div>
@@ -250,31 +294,42 @@ export default function App() {
       <div className="app-main-wrapper">
         {/* Top Enterprise Navigation Header */}
         <header className="top-nav-bar">
-          <div className="breadcrumb">
-            <span>Atlas</span>
-            <span className="sep">/</span>
-            <strong className="current-page-title">
-              {activeNavItem ? activeNavItem.label : "Dashboard"}
-            </strong>
+          <div className="top-nav-left">
+            <button
+              className="mobile-menu-btn"
+              onClick={() => setSidebarOpen(true)}
+              title="Open Navigation"
+              aria-label="Open Navigation"
+            >
+              <Menu size={20} />
+            </button>
+
+            <div className="breadcrumb">
+              <span onClick={() => navigate("/home")} style={{ cursor: "pointer", transition: "color 0.15s" }} title="View Homepage & Features">Atlas</span>
+              <span className="sep">/</span>
+              <strong className="current-page-title">
+                {activeNavItem ? activeNavItem.label : "Dashboard"}
+              </strong>
+            </div>
           </div>
 
           <div className="top-nav-right-actions">
             <button
               className="theme-toggle-btn"
               onClick={toggleTheme}
-              title={`Switch to ${theme === "light" ? "Dark Black" : "Light"} Theme`}
+              title={`Switch to ${theme === "light" ? "Dark" : "Light"} Theme`}
             >
-              {theme === "light" ? <Moon size={15} /> : <Sun size={15} />}
-              <span>{theme === "light" ? "Dark Theme" : "Light Theme"}</span>
+              {theme === "light" ? <Moon size={14} /> : <Sun size={14} />}
+              <span>{theme === "light" ? "Dark" : "Light"}</span>
             </button>
 
             <div
               className="top-user-pill"
               onClick={() => navigate("/profile")}
               style={{ cursor: "pointer" }}
-              title="Click to view Admin Profile"
+              title="Click to view Profile"
             >
-              <span className={`role-badge ${userRole}`}>RANK {user?.rank_level ?? 5} ({userRole.toUpperCase()})</span>
+              <span className="role-badge">RANK {user?.rank_level ?? 5}</span>
               <span className="user-email-tag">{user?.email}</span>
             </div>
           </div>

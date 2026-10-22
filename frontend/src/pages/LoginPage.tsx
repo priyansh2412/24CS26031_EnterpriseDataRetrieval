@@ -8,14 +8,20 @@ import {
   CheckCircle2,
   AlertCircle,
   Lock,
+  Sun,
+  Moon,
+  Sparkles,
+  Zap,
 } from "lucide-react";
 import { forgotPassword, login } from "../api";
 
 interface LoginPageProps {
   onSuccess: () => void;
+  theme?: "light" | "dark";
+  onToggleTheme?: () => void;
 }
 
-export default function LoginPage({ onSuccess }: LoginPageProps) {
+export default function LoginPage({ onSuccess, theme = "light", onToggleTheme }: LoginPageProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -58,44 +64,101 @@ export default function LoginPage({ onSuccess }: LoginPageProps) {
     }
   };
 
-  return (
-    <main className="login-container">
-      {/* Decorative ambient background mesh */}
-      <div className="ambient-mesh-glow" />
+  // Quick Demo Helper
+  const fillCredentials = (demoEmail: string, demoPass: string) => {
+    setEmail(demoEmail);
+    setPassword(demoPass);
+  };
 
-      <div className="login-card-wrapper single-panel">
-        {/* Login Form Panel */}
-        <div className="login-form-panel">
-          <div className="brand-header" style={{ marginBottom: "24px", justifyContent: "center" }}>
-            <div className="brand-badge glow-effect">
-              <ShieldCheck size={26} />
+  return (
+    <main className={`login-container ${theme}-theme`}>
+      {/* Decorative ambient background mesh blobs */}
+      <div className="ambient-bg-glow ambient-blob-1" />
+      <div className="ambient-bg-glow ambient-blob-2" />
+
+      {/* Theme Toggle in Top Right */}
+      {onToggleTheme && (
+        <div className="login-theme-pill-wrap">
+          <button
+            type="button"
+            className="theme-toggle-btn"
+            onClick={onToggleTheme}
+            title={`Switch to ${theme === "light" ? "Dark" : "Light"} theme`}
+          >
+            {theme === "light" ? <Moon size={14} /> : <Sun size={14} />}
+            <span>{theme === "light" ? "Dark Theme" : "Light Theme"}</span>
+          </button>
+        </div>
+      )}
+
+      <div className="login-split-wrapper">
+        {/* Left: Brand Panel (Reference 1 & 2) */}
+        <div className="login-brand-panel">
+          <div className="login-brand-top">
+            <div className="brand-mark">
+              <ShieldCheck size={24} />
             </div>
-            <div className="brand-title">
+            <div className="brand-copy">
               <strong>Atlas Enterprise</strong>
               <span>Grounded Knowledge Portal</span>
             </div>
           </div>
 
-          <form onSubmit={handleLogin} className="login-form">
-            <div className="form-header">
-              <div className="form-header-badge">
-                <Lock size={16} />
-                <span>SECURE AUTHENTICATION</span>
-              </div>
-              <h2>Sign In to Account</h2>
-              <p>Only pre-existing accounts in database are authorized.</p>
+          <div className="login-hero-copy">
+            <div className="eyebrow" style={{ marginBottom: "12px" }}>
+              <Sparkles size={14} /> NEXT-GEN ENTERPRISE INTELLIGENCE
             </div>
+            <h1 className="login-editorial-headline">
+              Ask your company's knowledge, <br />
+              <em>get answers</em> you can <span className="accent-word">trust</span>
+            </h1>
+            <p className="login-sub-line">
+              Vector-grounded AI search, citations directly verified against your source documents,
+              strict hierarchical role governance, and WhatsApp multi-channel collaboration.
+            </p>
+          </div>
 
-            {error && (
-              <div className="alert-banner error animated-fade-in">
-                <AlertCircle size={18} />
-                <div className="alert-content">
-                  <strong>Authentication Failed</strong>
-                  <span>{error}</span>
-                </div>
+          {/* Frosted Glass Stat Pill (Reference 1) */}
+          <div className="glass-stat-pill">
+            <div className="stat-pill-item">
+              <span className="stat-pill-val">100%</span>
+              <span className="stat-pill-label">Cited Answers</span>
+            </div>
+            <div className="stat-pill-sep" />
+            <div className="stat-pill-item">
+              <span className="stat-pill-val">Role-Based</span>
+              <span className="stat-pill-label">Access Control</span>
+            </div>
+            <div className="stat-pill-sep" />
+            <div className="stat-pill-item">
+              <span className="stat-pill-val">WhatsApp</span>
+              <span className="stat-pill-label">Multi-Device</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Right: Glass Login Card */}
+        <div className="login-form-panel">
+          <div className="form-header">
+            <div className="form-header-badge">
+              <Lock size={13} />
+              <span>SECURE ACCESS</span>
+            </div>
+            <h2>Sign In to Account</h2>
+            <p>Access your organization’s grounded knowledge workspace.</p>
+          </div>
+
+          {error && (
+            <div className="alert-banner error animated-fade-in">
+              <AlertCircle size={18} />
+              <div className="alert-content">
+                <strong>Authentication Failed: </strong>
+                <span>{error}</span>
               </div>
-            )}
+            </div>
+          )}
 
+          <form onSubmit={handleLogin} className="login-form">
             <div className="form-field">
               <label htmlFor="login-email">Registered Email Address</label>
               <input
@@ -106,6 +169,7 @@ export default function LoginPage({ onSuccess }: LoginPageProps) {
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="name@company.com"
                 autoComplete="email"
+                className="input"
               />
             </div>
 
@@ -135,6 +199,7 @@ export default function LoginPage({ onSuccess }: LoginPageProps) {
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Enter account password"
                   autoComplete="current-password"
+                  className="input"
                 />
                 <button
                   type="button"
@@ -148,12 +213,41 @@ export default function LoginPage({ onSuccess }: LoginPageProps) {
               </div>
             </div>
 
+            {/* Quick Demo Pre-fill helpers */}
+            <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap", margin: "2px 0 6px" }}>
+              <span style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: "600" }}>DEMO SHORTCUTS:</span>
+              <button
+                type="button"
+                className="chip-btn"
+                style={{ padding: "3px 9px", fontSize: "11px" }}
+                onClick={() => fillCredentials("admin@example.com", "AdminPass123!")}
+              >
+                Admin (Rank 1)
+              </button>
+              <button
+                type="button"
+                className="chip-btn"
+                style={{ padding: "3px 9px", fontSize: "11px" }}
+                onClick={() => fillCredentials("manager@example.com", "ManagerPass123!")}
+              >
+                Manager (Rank 3)
+              </button>
+              <button
+                type="button"
+                className="chip-btn"
+                style={{ padding: "3px 9px", fontSize: "11px" }}
+                onClick={() => fillCredentials("employee@example.com", "EmployeePass123!")}
+              >
+                Employee (Rank 4)
+              </button>
+            </div>
+
             <button type="submit" className="login-submit-btn" disabled={loading}>
               {loading ? (
-                <div className="btn-spinner-wrap">
-                  <span className="spinner-dot" />
+                <>
+                  <div className="spinner-dot" />
                   <span>Authenticating Credentials…</span>
-                </div>
+                </>
               ) : (
                 <>
                   <span>Sign In to Workspace</span>
@@ -162,8 +256,8 @@ export default function LoginPage({ onSuccess }: LoginPageProps) {
               )}
             </button>
 
-            <div className="security-notice">
-              <Lock size={13} />
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", color: "var(--text-muted)", fontSize: "12px", marginTop: "12px" }}>
+              <Lock size={12} />
               <span>Protected by OAuth2 & JWT session encryption</span>
             </div>
           </form>
@@ -173,9 +267,9 @@ export default function LoginPage({ onSuccess }: LoginPageProps) {
       {/* Forgot Password Modal */}
       {showForgotModal && (
         <div className="modal-overlay" onClick={() => setShowForgotModal(false)}>
-          <div className="modal-content animated-scale-up" onClick={(e) => e.stopPropagation()}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <div className="modal-icon glow-icon">
+              <div className="modal-icon">
                 <KeyRound size={22} />
               </div>
               <div>
@@ -207,6 +301,7 @@ export default function LoginPage({ onSuccess }: LoginPageProps) {
                   value={forgotEmail}
                   onChange={(e) => setForgotEmail(e.target.value)}
                   placeholder="user@example.com"
+                  className="input"
                 />
               </div>
 

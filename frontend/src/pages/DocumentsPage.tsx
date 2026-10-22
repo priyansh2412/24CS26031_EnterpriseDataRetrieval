@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import {
   FileText,
   RefreshCw,
@@ -19,6 +19,8 @@ import {
   ChevronDown,
   ChevronRight,
   FolderOpen,
+  UploadCloud,
+  FileSpreadsheet,
 } from "lucide-react";
 import {
   CompanyRoleItem,
@@ -27,6 +29,14 @@ import {
   UserItem,
   request,
 } from "../api";
+
+function getFileTypeIcon(name: string) {
+  const ext = (name || "").split(".").pop()?.toLowerCase();
+  if (ext === "pdf") return <FileText size={18} style={{ color: "#ef4444" }} />;
+  if (ext === "xlsx" || ext === "xls" || ext === "csv") return <FileSpreadsheet size={18} style={{ color: "#10b981" }} />;
+  if (ext === "docx" || ext === "doc") return <FileText size={18} style={{ color: "#3b82f6" }} />;
+  return <FileText size={18} style={{ color: "var(--accent)" }} />;
+}
 
 export default function DocumentsPage() {
   const [docs, setDocs] = useState<DocumentItem[]>([]);
@@ -37,6 +47,8 @@ export default function DocumentsPage() {
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [uploadingFile, setUploadingFile] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Add Google Drive Link Input State (Clean single input box in section)
   const [driveUrl, setDriveUrl] = useState("");
@@ -115,6 +127,45 @@ export default function DocumentsPage() {
       ...prev,
       [folderPath]: !prev[folderPath],
     }));
+  };
+
+  // Close modal on Escape
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setEditingDoc(null);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingFile(true);
+    setMessage(null);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      await request("/api/ingest/upload", {
+        method: "POST",
+        body: formData,
+      });
+      setMessage({
+        type: "success",
+        text: `Document "${file.name}" uploaded and ingested into knowledge library!`,
+      });
+      await loadDocs("");
+    } catch (err: any) {
+      setMessage({
+        type: "error",
+        text: err?.message || "Failed to upload document",
+      });
+    } finally {
+      setUploadingFile(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
   };
 
   // Connect & Ingest Google Drive Link
@@ -325,104 +376,122 @@ export default function DocumentsPage() {
   const readyCount = docs.filter((d) => d.status === "ready").length;
 
   return (
-    <div className="documents-page" style={{ padding: "0 4px" }}>
+    <div className="documents-page">
       {/* Header */}
-      <header className="page-heading" style={{ marginBottom: "24px" }}>
+      <header className="page-heading">
         <div>
-          <div className="eyebrow" style={{ display: "flex", alignItems: "center", gap: "6px", color: "#2563eb", fontWeight: "700" }}>
+          <div className="eyebrow">
             <FileText size={14} /> KNOWLEDGE LIBRARY & MULTI-TENANT DOCUMENT STORAGE
           </div>
-          <h1 style={{ fontSize: "28px", fontWeight: "800", color: "#0f172a", margin: "6px 0" }}>Enterprise Document Storage</h1>
-          <p className="subheading" style={{ color: "#64748b", fontSize: "14px", margin: 0 }}>
-            Connect Google Drive links to automatically ingest documents, browse folders, and manage fine-grained access permissions.
+          <h1>Enterprise Document Storage</h1>
+          <p className="subheading">
+            Ingest local files and connect Google Drive links to index documents into vector embeddings with granular ACL permissions.
           </p>
         </div>
       </header>
 
       {/* Global Alerts */}
       {message && (
-        <div
-          className={`alert-banner ${message.type}`}
-          style={{
-            marginBottom: "20px",
-            padding: "12px 16px",
-            borderRadius: "8px",
-            display: "flex",
-            alignItems: "center",
-            gap: "10px",
-            background: message.type === "success" ? "#ecfdf5" : "#fef2f2",
-            color: message.type === "success" ? "#065f46" : "#991b1b",
-            border: `1px solid ${message.type === "success" ? "#a7f3d0" : "#fecaca"}`,
-          }}
-        >
+        <div className={`alert-banner ${message.type} margin-bottom`}>
           {message.type === "success" ? <CheckCircle size={18} /> : <AlertCircle size={18} />}
-          <span style={{ fontSize: "14px", fontWeight: "500" }}>{message.text}</span>
+          <span>{message.text}</span>
         </div>
       )}
 
       {/* Summary Metrics Counter */}
-      <section className="library-summary-cards" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "16px", marginBottom: "24px" }}>
-        <div className="summary-stat-card" style={{ background: "#ffffff", padding: "18px 20px", borderRadius: "12px", border: "1px solid #e2e8f0", display: "flex", alignItems: "center", gap: "14px" }}>
-          <div className="stat-icon icon-blue" style={{ width: "42px", height: "42px", borderRadius: "10px", background: "#eff6ff", color: "#2563eb", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <section className="metric-grid" style={{ marginBottom: "24px" }}>
+        <div className="metric-card card-glass">
+          <div className="metric-icon" style={{ background: "rgba(59, 130, 246, 0.12)", color: "#3b82f6" }}>
             <FileText size={22} />
           </div>
-          <div>
-            <strong className="stat-number" style={{ fontSize: "22px", fontWeight: "800", color: "#0f172a", display: "block" }}>{docs.length}</strong>
-            <span className="stat-label" style={{ fontSize: "12px", color: "#64748b" }}>Ingested Documents</span>
+          <div className="metric-details">
+            <span className="metric-label">Ingested Documents</span>
+            <span className="metric-value">{docs.length}</span>
+            <span className="metric-sub">Across all folders</span>
           </div>
         </div>
 
-        <div className="summary-stat-card" style={{ background: "#ffffff", padding: "18px 20px", borderRadius: "12px", border: "1px solid #e2e8f0", display: "flex", alignItems: "center", gap: "14px" }}>
-          <div className="stat-icon icon-indigo" style={{ width: "42px", height: "42px", borderRadius: "10px", background: "#eef2ff", color: "#4f46e5", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div className="metric-card card-glass">
+          <div className="metric-icon" style={{ background: "rgba(168, 85, 247, 0.12)", color: "#a855f7" }}>
             <Layers size={22} />
           </div>
-          <div>
-            <strong className="stat-number" style={{ fontSize: "22px", fontWeight: "800", color: "#0f172a", display: "block" }}>{totalChunks}</strong>
-            <span className="stat-label" style={{ fontSize: "12px", color: "#64748b" }}>Searchable Passages</span>
+          <div className="metric-details">
+            <span className="metric-label">Searchable Passages</span>
+            <span className="metric-value">{totalChunks}</span>
+            <span className="metric-sub">Semantic vector chunks</span>
           </div>
         </div>
 
-        <div className="summary-stat-card" style={{ background: "#ffffff", padding: "18px 20px", borderRadius: "12px", border: "1px solid #e2e8f0", display: "flex", alignItems: "center", gap: "14px" }}>
-          <div className="stat-icon icon-emerald" style={{ width: "42px", height: "42px", borderRadius: "10px", background: "#ecfdf5", color: "#10b981", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div className="metric-card card-glass">
+          <div className="metric-icon" style={{ background: "rgba(16, 185, 129, 0.12)", color: "#10b981" }}>
             <CheckCircle size={22} />
           </div>
-          <div>
-            <strong className="stat-number" style={{ fontSize: "22px", fontWeight: "800", color: "#0f172a", display: "block" }}>{readyCount}</strong>
-            <span className="stat-label" style={{ fontSize: "12px", color: "#64748b" }}>Ready for Search</span>
+          <div className="metric-details">
+            <span className="metric-label">Ready for Search</span>
+            <span className="metric-value">{readyCount}</span>
+            <span className="metric-sub">Fully indexed</span>
           </div>
         </div>
 
-        <div className="summary-stat-card" style={{ background: "#ffffff", padding: "18px 20px", borderRadius: "12px", border: "1px solid #e2e8f0", display: "flex", alignItems: "center", gap: "14px" }}>
-          <div className="stat-icon icon-amber" style={{ width: "42px", height: "42px", borderRadius: "10px", background: "#fef3c7", color: "#d97706", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div className="metric-card card-glass">
+          <div className="metric-icon" style={{ background: "rgba(245, 158, 11, 0.12)", color: "#f59e0b" }}>
             <ExternalLink size={22} />
           </div>
-          <div>
-            <strong className="stat-number" style={{ fontSize: "22px", fontWeight: "800", color: "#0f172a", display: "block" }}>{driveLinks.length}</strong>
-            <span className="stat-label" style={{ fontSize: "12px", color: "#64748b" }}>Connected Drive Sources</span>
+          <div className="metric-details">
+            <span className="metric-label">Connected Drive Sources</span>
+            <span className="metric-value">{driveLinks.length}</span>
+            <span className="metric-sub">External repositories</span>
           </div>
         </div>
       </section>
 
-      {/* =========================================================================
-          SECTION: ENTERPRISE GOOGLE DRIVE SOURCES (ONLY BOX FOR ADD LINK)
-          ========================================================================= */}
-      <section
-        style={{
-          background: "#ffffff",
-          borderRadius: "14px",
-          border: "1px solid #e2e8f0",
-          padding: "24px",
-          marginBottom: "28px",
-          boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
+      {/* Upload Dropzone */}
+      <div
+        className="dropzone-card"
+        onClick={() => fileInputRef.current?.click()}
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={(e) => {
+          e.preventDefault();
+          const file = e.dataTransfer.files?.[0];
+          if (file) {
+            const dt = new DataTransfer();
+            dt.items.add(file);
+            if (fileInputRef.current) {
+              fileInputRef.current.files = dt.files;
+              handleFileUpload({ target: fileInputRef.current } as any);
+            }
+          }
         }}
       >
+        <input
+          type="file"
+          ref={fileInputRef}
+          style={{ display: "none" }}
+          accept=".pdf,.docx,.xlsx,.txt,.md,.csv,.pptx"
+          onChange={handleFileUpload}
+        />
+        <div className="dropzone-icon">
+          {uploadingFile ? <RefreshCw className="spin" size={24} /> : <UploadCloud size={24} />}
+        </div>
+        <div>
+          <strong style={{ fontSize: "15px", color: "var(--text)", display: "block" }}>
+            {uploadingFile ? "Ingesting document into vector store..." : "Click or drag & drop files to ingest"}
+          </strong>
+          <p style={{ margin: "4px 0 0", fontSize: "12.5px", color: "var(--text-muted)" }}>
+            Supports PDF, DOCX, XLSX, TXT, CSV, PPTX (chunked with semantic embeddings)
+          </p>
+        </div>
+      </div>
+
+      {/* SECTION: ENTERPRISE GOOGLE DRIVE SOURCES */}
+      <section className="drive-connect-card card-glass">
         <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
-          <Folder size={20} style={{ color: "#2563eb" }} />
-          <h3 style={{ margin: 0, fontSize: "18px", fontWeight: "800", color: "#0f172a" }}>
+          <Folder size={20} style={{ color: "var(--accent)" }} />
+          <h3 style={{ margin: 0, fontSize: "18px", fontWeight: "800", color: "var(--text)" }}>
             Enterprise Google Drive Sources
           </h3>
         </div>
-        <p style={{ margin: "0 0 18px 0", color: "#64748b", fontSize: "13.5px" }}>
+        <p style={{ margin: "0 0 18px 0", color: "var(--text-muted)", fontSize: "13.5px" }}>
           Paste any Google Drive folder or document link. The title, folder structure, and files are automatically detected and ingested.
         </p>
 
@@ -438,20 +507,20 @@ export default function DocumentsPage() {
             style={{
               flex: "1 1 400px",
               padding: "12px 16px",
-              borderRadius: "10px",
-              border: "1.5px solid #cbd5e1",
+              borderRadius: "var(--radius-md)",
+              border: "1.5px solid var(--border)",
+              background: "var(--surface)",
+              color: "var(--text)",
               fontSize: "14px",
               outline: "none",
-              transition: "border-color 0.2s",
             }}
           />
           <button
             type="submit"
-            className="btn btn-primary"
+            className="btn btn-primary btn-pill"
             disabled={connectingDrive}
             style={{
               padding: "12px 24px",
-              borderRadius: "10px",
               display: "flex",
               alignItems: "center",
               gap: "8px",
@@ -471,29 +540,19 @@ export default function DocumentsPage() {
             {driveLinks.map((link) => (
               <div
                 key={link.id}
+                className="card"
                 style={{
-                  background: "#f8fafc",
-                  borderRadius: "10px",
-                  border: "1px solid #e2e8f0",
                   padding: "14px 16px",
                   display: "flex",
                   flexDirection: "column",
                   justifyContent: "space-between",
+                  background: "var(--surface-2)",
                 }}
               >
                 <div>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
-                    <strong style={{ fontSize: "14.5px", color: "#0f172a" }}>{link.name}</strong>
-                    <span
-                      style={{
-                        padding: "2px 8px",
-                        borderRadius: "10px",
-                        fontSize: "11px",
-                        fontWeight: "700",
-                        background: "#ecfdf5",
-                        color: "#065f46",
-                      }}
-                    >
+                    <strong style={{ fontSize: "14.5px", color: "var(--text)" }}>{link.name}</strong>
+                    <span className="badge-success">
                       {link.status || "synced"}
                     </span>
                   </div>
@@ -504,7 +563,7 @@ export default function DocumentsPage() {
                     rel="noopener noreferrer"
                     style={{
                       fontSize: "12px",
-                      color: "#2563eb",
+                      color: "var(--accent)",
                       textDecoration: "none",
                       display: "flex",
                       alignItems: "center",
@@ -517,15 +576,15 @@ export default function DocumentsPage() {
                     <ExternalLink size={12} />
                   </a>
 
-                  <div style={{ fontSize: "12px", color: "#64748b" }}>
+                  <div style={{ fontSize: "12px", color: "var(--text-muted)" }}>
                     {link.doc_count} document{link.doc_count === 1 ? "" : "s"} ingested
                   </div>
                 </div>
 
-                <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: "8px", marginTop: "12px", paddingTop: "10px", borderTop: "1px solid #e2e8f0" }}>
+                <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: "8px", marginTop: "12px", paddingTop: "10px", borderTop: "1px solid var(--border)" }}>
                   <button
                     type="button"
-                    className="btn btn-secondary"
+                    className="btn btn-secondary btn-pill"
                     onClick={() => handleSyncDriveLink(link)}
                     title="Re-synchronize documents"
                     style={{ padding: "4px 10px", fontSize: "12px", display: "flex", alignItems: "center", gap: "4px" }}
@@ -537,7 +596,7 @@ export default function DocumentsPage() {
                     type="button"
                     onClick={() => handleDeleteDriveLink(link.id, link.name)}
                     title="Disconnect Google Drive Link"
-                    style={{ background: "none", border: "none", cursor: "pointer", color: "#ef4444", padding: "4px" }}
+                    style={{ background: "none", border: "none", cursor: "pointer", color: "var(--danger)", padding: "4px" }}
                   >
                     <Trash2 size={15} />
                   </button>
@@ -551,39 +610,52 @@ export default function DocumentsPage() {
       {/* =========================================================================
           SECTION: INGESTED FOLDERS & FILES WITH DROPDOWN HIERARCHY
           ========================================================================= */}
-      <section className="library-card" style={{ background: "#ffffff", borderRadius: "14px", border: "1px solid #e2e8f0", padding: "24px" }}>
+      {/* =========================================================================
+          SECTION: INGESTED FOLDERS & FILES WITH DROPDOWN HIERARCHY
+          ========================================================================= */}
+      <section className="card-glass" style={{ padding: "24px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px", marginBottom: "20px" }}>
           <div>
-            <h3 style={{ margin: 0, fontSize: "18px", fontWeight: "800", color: "#0f172a" }}>
+            <h3 style={{ margin: 0, fontSize: "18px", fontWeight: "800", color: "var(--text)" }}>
               Ingested Drive Folders & Documents
             </h3>
-            <p style={{ margin: "4px 0 0", color: "#64748b", fontSize: "13px" }}>
+            <p style={{ margin: "4px 0 0", color: "var(--text-muted)", fontSize: "13px" }}>
               Click any folder to expand or collapse its files. Use "Manage Access" to control department and individual employee permissions.
             </p>
           </div>
 
-          <div className="search-field" style={{ display: "flex", alignItems: "center", gap: "8px", flex: "0 1 300px" }}>
-            <Search size={16} style={{ color: "#94a3b8" }} />
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", flex: "0 1 320px", position: "relative" }}>
+            <Search size={16} style={{ position: "absolute", left: "12px", color: "var(--text-muted)" }} />
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search documents..."
-              style={{ width: "100%", padding: "8px 12px", borderRadius: "8px", border: "1px solid #cbd5e1", fontSize: "13px" }}
+              style={{
+                width: "100%",
+                padding: "8px 12px 8px 36px",
+                borderRadius: "var(--radius-md)",
+                border: "1px solid var(--border)",
+                background: "var(--surface)",
+                color: "var(--text)",
+                fontSize: "13px",
+              }}
             />
           </div>
         </div>
 
         {/* Hierarchical Folder & Document Tree */}
         {loading ? (
-          <div className="empty-state" style={{ textAlign: "center", padding: "30px", color: "#64748b" }}>
-            Loading document library…
+          <div style={{ padding: "20px 0", display: "flex", flexDirection: "column", gap: "12px" }}>
+            <div className="skeleton" style={{ height: "48px", borderRadius: "var(--radius-md)" }} />
+            <div className="skeleton" style={{ height: "48px", borderRadius: "var(--radius-md)" }} />
+            <div className="skeleton" style={{ height: "48px", borderRadius: "var(--radius-md)" }} />
           </div>
         ) : folderKeys.length === 0 ? (
-          <div className="empty-state" style={{ textAlign: "center", padding: "40px", color: "#64748b" }}>
-            <FileText size={36} style={{ color: "#94a3b8", marginBottom: "8px" }} />
-            <strong style={{ display: "block", fontSize: "16px", color: "#0f172a" }}>No Documents Ingested Yet</strong>
+          <div className="empty-state" style={{ padding: "40px" }}>
+            <FileText size={36} style={{ color: "var(--text-muted)", marginBottom: "8px" }} />
+            <strong>No Documents Ingested Yet</strong>
             <p style={{ margin: "4px 0 0", fontSize: "13px" }}>
-              Paste a Google Drive link in the box above and click "Add Link" to ingest documents.
+              Upload a document or paste a Google Drive link above to ingest documents.
             </p>
           </div>
         ) : (
@@ -595,41 +667,27 @@ export default function DocumentsPage() {
               return (
                 <div
                   key={folderPath}
-                  style={{
-                    border: "1px solid #e2e8f0",
-                    borderRadius: "12px",
-                    overflow: "hidden",
-                    background: "#ffffff",
-                  }}
+                  className="folder-accordion-item"
                 >
                   {/* Folder Header (Dropdown Accordion Toggle) */}
                   <div
                     onClick={() => toggleFolder(folderPath)}
-                    style={{
-                      background: "#f8fafc",
-                      padding: "14px 18px",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      cursor: "pointer",
-                      userSelect: "none",
-                      borderBottom: isExpanded ? "1px solid #e2e8f0" : "none",
-                    }}
+                    className="folder-header"
                   >
                     <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                      {isExpanded ? <ChevronDown size={18} style={{ color: "#64748b" }} /> : <ChevronRight size={18} style={{ color: "#64748b" }} />}
-                      {isExpanded ? <FolderOpen size={20} style={{ color: "#2563eb" }} /> : <Folder size={20} style={{ color: "#2563eb" }} />}
+                      {isExpanded ? <ChevronDown size={18} style={{ color: "var(--text-muted)" }} /> : <ChevronRight size={18} style={{ color: "var(--text-muted)" }} />}
+                      {isExpanded ? <FolderOpen size={20} style={{ color: "var(--accent)" }} /> : <Folder size={20} style={{ color: "var(--accent)" }} />}
                       <div>
-                        <strong style={{ fontSize: "15px", color: "#0f172a" }}>
+                        <strong style={{ fontSize: "15px", color: "var(--text)" }}>
                           {folderPath === "/" ? "Root Folder (/)" : folderPath}
                         </strong>
-                        <span style={{ marginLeft: "10px", fontSize: "12px", color: "#64748b", fontWeight: "600" }}>
+                        <span style={{ marginLeft: "10px", fontSize: "12px", color: "var(--text-muted)", fontWeight: "600" }}>
                           ({folderDocs.length} file{folderDocs.length === 1 ? "" : "s"})
                         </span>
                       </div>
                     </div>
 
-                    <span style={{ fontSize: "12px", color: "#64748b" }}>
+                    <span style={{ fontSize: "12px", color: "var(--text-muted)" }}>
                       {isExpanded ? "Click to collapse" : "Click to view files"}
                     </span>
                   </div>
@@ -652,6 +710,9 @@ export default function DocumentsPage() {
                           deniedList = [];
                         }
 
+                        const isDrive = Boolean((doc as any).drive_file_id || (doc as any).source_type === "drive" || (doc as any).source === "drive");
+                        const isTemp = Boolean((doc as any).source_type === "temp");
+
                         return (
                           <div
                             key={doc.id}
@@ -660,69 +721,60 @@ export default function DocumentsPage() {
                               alignItems: "center",
                               justifyContent: "space-between",
                               padding: "14px 20px",
-                              borderTop: "1px solid #f1f5f9",
+                              borderTop: "1px solid var(--border)",
                               flexWrap: "wrap",
                               gap: "12px",
+                              background: "var(--surface)",
                             }}
                           >
                             <div style={{ display: "flex", alignItems: "center", gap: "14px", flex: "1 1 340px" }}>
                               <div
                                 style={{
-                                  width: "36px",
-                                  height: "36px",
-                                  borderRadius: "8px",
-                                  background: "#eff6ff",
-                                  color: "#2563eb",
+                                  width: "38px",
+                                  height: "38px",
+                                  borderRadius: "var(--radius-md)",
+                                  background: "var(--surface-2)",
+                                  border: "1px solid var(--border)",
                                   display: "flex",
                                   alignItems: "center",
                                   justifyContent: "center",
                                   flexShrink: 0,
                                 }}
                               >
-                                <FileText size={18} />
+                                {getFileTypeIcon(doc.name)}
                               </div>
 
                               <div>
-                                <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
-                                  <strong style={{ fontSize: "14px", color: "#0f172a" }}>{doc.name}</strong>
-                                  <span
-                                    style={{
-                                      padding: "2px 7px",
-                                      borderRadius: "10px",
-                                      fontSize: "11px",
-                                      fontWeight: "700",
-                                      background: doc.status === "ready" ? "#ecfdf5" : "#fef3c7",
-                                      color: doc.status === "ready" ? "#065f46" : "#b45309",
-                                      display: "flex",
-                                      alignItems: "center",
-                                      gap: "3px",
-                                    }}
-                                  >
+                                <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px", flexWrap: "wrap" }}>
+                                  <strong style={{ fontSize: "14px", color: "var(--text)" }}>{doc.name}</strong>
+                                  
+                                  {/* Source Badge */}
+                                  <span className="chip" style={{ fontSize: "10.5px" }}>
+                                    {isDrive ? "Google Drive" : isTemp ? "Temp" : "Local"}
+                                  </span>
+
+                                  {/* Status Badge */}
+                                  <span className={doc.status === "ready" ? "badge-success" : "badge-warning"}>
                                     {doc.status === "ready" ? <CheckCircle size={10} /> : <Clock size={10} />}
-                                    {doc.status}
+                                    <span>{doc.status}</span>
                                   </span>
                                 </div>
 
-                                <p style={{ margin: "0 0 6px 0", fontSize: "12px", color: "#64748b" }}>
+                                <p style={{ margin: "0 0 6px 0", fontSize: "12px", color: "var(--text-muted)" }}>
                                   {doc.chunk_count} passages ingested · Added {new Date(doc.created_at).toLocaleDateString()}
                                 </p>
 
                                 {/* Department Roles and Denied Counts */}
                                 <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "6px" }}>
-                                  <span style={{ fontSize: "11.5px", fontWeight: "600", color: "#475569", display: "flex", alignItems: "center", gap: "4px" }}>
-                                    <Shield size={12} style={{ color: "#2563eb" }} /> Allowed:
+                                  <span style={{ fontSize: "11.5px", fontWeight: "600", color: "var(--text-muted)", display: "flex", alignItems: "center", gap: "4px" }}>
+                                    <Shield size={12} style={{ color: "var(--accent)" }} /> Allowed:
                                   </span>
                                   {rolesList.map((r) => (
                                     <span
                                       key={r}
+                                      className="chip"
                                       style={{
-                                        padding: "1px 7px",
-                                        borderRadius: "10px",
                                         fontSize: "10.5px",
-                                        fontWeight: "700",
-                                        background: "#eff6ff",
-                                        color: "#1d4ed8",
-                                        border: "1px solid #bfdbfe",
                                         textTransform: "uppercase",
                                       }}
                                     >
@@ -732,15 +784,10 @@ export default function DocumentsPage() {
 
                                   {deniedList.length > 0 && (
                                     <span
+                                      className="badge-danger"
                                       style={{
-                                        padding: "1px 7px",
-                                        borderRadius: "10px",
                                         fontSize: "10.5px",
-                                        fontWeight: "700",
-                                        background: "#fef2f2",
-                                        color: "#991b1b",
-                                        border: "1px solid #fecaca",
-                                        display: "flex",
+                                        display: "inline-flex",
                                         alignItems: "center",
                                         gap: "3px",
                                       }}
@@ -756,43 +803,54 @@ export default function DocumentsPage() {
                             {/* Actions Toolbar */}
                             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                               <button
-                                className="btn btn-secondary"
+                                className="btn-pill btn-secondary"
                                 title="Manage Access & Permissions"
                                 onClick={() => openAccessModal(doc)}
-                                style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12.5px", padding: "6px 12px" }}
+                                style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", padding: "6px 12px" }}
                               >
-                                <Shield size={14} style={{ color: "#2563eb" }} />
+                                <Shield size={13} style={{ color: "var(--accent)" }} />
                                 <span>Manage Access</span>
                               </button>
 
                               <button
-                                className="btn-icon-action"
+                                className="btn-pill btn-secondary"
                                 title="Re-index Chunks"
                                 disabled={activeId === doc.id}
                                 onClick={() => docAction(`/api/documents/${doc.id}/reingest`, "POST", doc.id)}
-                                style={{ padding: "6px", border: "1px solid #cbd5e1", borderRadius: "6px", background: "none", cursor: "pointer" }}
+                                style={{ padding: "6px 10px", fontSize: "12px", display: "inline-flex", alignItems: "center", gap: "4px" }}
                               >
-                                <RefreshCw size={14} />
+                                <RefreshCw size={13} className={activeId === doc.id ? "spin" : ""} />
+                                <span>Reindex</span>
                               </button>
 
                               <button
-                                className="btn-icon-action"
+                                className="btn-pill btn-secondary"
                                 title="Generate Summary"
                                 disabled={activeId === doc.id}
                                 onClick={() => docAction(`/api/documents/${doc.id}/summary`, "POST", doc.id)}
-                                style={{ padding: "6px", border: "1px solid #cbd5e1", borderRadius: "6px", background: "none", cursor: "pointer" }}
+                                style={{ padding: "6px 10px", fontSize: "12px", display: "inline-flex", alignItems: "center", gap: "4px" }}
                               >
-                                <Sparkles size={14} />
+                                <Sparkles size={13} />
+                                <span>Summary</span>
                               </button>
 
                               <button
-                                className="btn-icon-action danger"
+                                className="btn-pill"
                                 title="Delete Document"
                                 disabled={activeId === doc.id}
                                 onClick={() => docAction(`/api/documents/${doc.id}`, "DELETE", doc.id)}
-                                style={{ padding: "6px", border: "1px solid #fecaca", borderRadius: "6px", background: "none", cursor: "pointer", color: "#ef4444" }}
+                                style={{
+                                  padding: "6px 10px",
+                                  fontSize: "12px",
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: "4px",
+                                  background: "var(--danger-soft)",
+                                  color: "var(--danger)",
+                                  border: "1px solid var(--danger)",
+                                }}
                               >
-                                <Trash2 size={14} />
+                                <Trash2 size={13} />
                               </button>
                             </div>
                           </div>
@@ -811,75 +869,44 @@ export default function DocumentsPage() {
           MODAL: MANAGE ACCESS (ALLOWED ROLES + DENIED EMPLOYEES + QDRANT ACL)
           ========================================================================= */}
       {editingDoc && (
-        <div
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: "rgba(15, 23, 42, 0.6)",
-            backdropFilter: "blur(4px)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 1000,
-            padding: "20px",
-          }}
-        >
+        <div className="modal-overlay" onClick={() => setEditingDoc(null)}>
           <div
-            style={{
-              background: "#ffffff",
-              borderRadius: "14px",
-              width: "100%",
-              maxWidth: "680px",
-              maxHeight: "90vh",
-              display: "flex",
-              flexDirection: "column",
-              boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)",
-              overflow: "hidden",
-            }}
+            className="modal-content animated-scale-up card-glass"
+            onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: "680px" }}
           >
             {/* Modal Header */}
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                padding: "20px 24px",
-                borderBottom: "1px solid #e2e8f0",
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                <div style={{ width: "36px", height: "36px", borderRadius: "8px", background: "#eff6ff", color: "#2563eb", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <Shield size={20} />
-                </div>
-                <div>
-                  <h3 style={{ margin: 0, fontSize: "17px", fontWeight: "800", color: "#0f172a" }}>
-                    Manage Access Permissions
-                  </h3>
-                  <span style={{ fontSize: "12px", color: "#64748b" }}>
-                    {editingDoc.name} ({editingDoc.folder_path || "/"})
-                  </span>
-                </div>
+            <header className="modal-header">
+              <div className="glow-icon">
+                <Shield size={20} />
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: "17px", fontWeight: "800", color: "var(--text)" }}>
+                  Manage Access Permissions
+                </h3>
+                <span style={{ fontSize: "12px", color: "var(--text-muted)" }}>
+                  {editingDoc.name} ({editingDoc.folder_path || "/"})
+                </span>
               </div>
               <button
                 type="button"
                 onClick={() => setEditingDoc(null)}
-                style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8" }}
+                className="close-btn"
+                style={{ marginLeft: "auto" }}
+                title="Close"
               >
-                <X size={20} />
+                <X size={18} />
               </button>
-            </div>
+            </header>
 
             {/* Modal Body */}
-            <div style={{ padding: "24px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "22px" }}>
+            <div className="modal-body" style={{ padding: "24px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "22px" }}>
               {/* Section 1: Allowed Department Roles */}
               <div>
-                <div style={{ fontSize: "13.5px", fontWeight: "700", color: "#0f172a", marginBottom: "4px" }}>
+                <div style={{ fontSize: "13.5px", fontWeight: "700", color: "var(--text)", marginBottom: "4px" }}>
                   1. Allowed Departments & Roles
                 </div>
-                <p style={{ margin: "0 0 12px 0", fontSize: "12px", color: "#64748b" }}>
+                <p style={{ margin: "0 0 12px 0", fontSize: "12px", color: "var(--text-muted)" }}>
                   Select which departments have access to view and search this document (matches Workspace Settings roles dynamically):
                 </p>
 
@@ -896,17 +923,18 @@ export default function DocumentsPage() {
                           alignItems: "center",
                           justifyContent: "space-between",
                           padding: "10px 14px",
-                          borderRadius: "8px",
-                          border: `1.5px solid ${isChecked ? "#2563eb" : "#cbd5e1"}`,
-                          background: isChecked ? "#eff6ff" : "#ffffff",
+                          borderRadius: "var(--radius-md)",
+                          border: `1.5px solid ${isChecked ? "var(--accent)" : "var(--border)"}`,
+                          background: isChecked ? "var(--accent-soft)" : "var(--surface-2)",
+                          color: isChecked ? "var(--accent)" : "var(--text)",
                           cursor: "pointer",
                           transition: "all 0.15s ease",
                         }}
                       >
-                        <span style={{ fontSize: "13px", fontWeight: "700", color: isChecked ? "#1d4ed8" : "#334155" }}>
+                        <span style={{ fontSize: "13px", fontWeight: "700" }}>
                           {r.name}
                         </span>
-                        {isChecked && <Check size={16} style={{ color: "#2563eb" }} />}
+                        {isChecked && <Check size={16} />}
                       </button>
                     );
                   })}
@@ -916,14 +944,14 @@ export default function DocumentsPage() {
               {/* Section 2: Deny Specific Persons */}
               <div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
-                  <div style={{ fontSize: "13.5px", fontWeight: "700", color: "#0f172a" }}>
+                  <div style={{ fontSize: "13.5px", fontWeight: "700", color: "var(--text)" }}>
                     2. Deny Access to Specific Employees (Blacklist)
                   </div>
-                  <span style={{ fontSize: "12px", color: "#ef4444", fontWeight: "600" }}>
+                  <span style={{ fontSize: "12px", color: "var(--danger)", fontWeight: "600" }}>
                     {deniedUsers.length} employee{deniedUsers.length === 1 ? "" : "s"} denied
                   </span>
                 </div>
-                <p style={{ margin: "0 0 10px 0", fontSize: "12px", color: "#64748b" }}>
+                <p style={{ margin: "0 0 10px 0", fontSize: "12px", color: "var(--text-muted)" }}>
                   Even if their department has access above, selectively block specific individual employees from searching or accessing this file:
                 </p>
 
@@ -932,15 +960,24 @@ export default function DocumentsPage() {
                   placeholder="Search employees to deny..."
                   value={employeeSearch}
                   onChange={(e) => setEmployeeSearch(e.target.value)}
-                  style={{ width: "100%", padding: "8px 12px", borderRadius: "8px", border: "1px solid #cbd5e1", fontSize: "13px", marginBottom: "10px" }}
+                  style={{
+                    width: "100%",
+                    padding: "8px 12px",
+                    borderRadius: "var(--radius-md)",
+                    border: "1px solid var(--border)",
+                    background: "var(--surface)",
+                    color: "var(--text)",
+                    fontSize: "13px",
+                    marginBottom: "10px",
+                  }}
                 />
 
                 <div
                   style={{
                     maxHeight: "180px",
                     overflowY: "auto",
-                    border: "1px solid #e2e8f0",
-                    borderRadius: "8px",
+                    border: "1px solid var(--border)",
+                    borderRadius: "var(--radius-md)",
                     padding: "8px",
                     display: "flex",
                     flexDirection: "column",
@@ -948,7 +985,7 @@ export default function DocumentsPage() {
                   }}
                 >
                   {relevantEmployees.length === 0 ? (
-                    <div style={{ textAlign: "center", padding: "14px", fontSize: "12px", color: "#94a3b8" }}>
+                    <div style={{ textAlign: "center", padding: "14px", fontSize: "12px", color: "var(--text-muted)" }}>
                       No matching employees found in allowed departments.
                     </div>
                   ) : (
@@ -964,14 +1001,14 @@ export default function DocumentsPage() {
                             alignItems: "center",
                             justifyContent: "space-between",
                             padding: "8px 12px",
-                            borderRadius: "6px",
-                            background: isDenied ? "#fef2f2" : "#f8fafc",
-                            border: `1px solid ${isDenied ? "#fecaca" : "#e2e8f0"}`,
+                            borderRadius: "var(--radius-sm)",
+                            background: isDenied ? "var(--danger-soft)" : "var(--surface-2)",
+                            border: `1px solid ${isDenied ? "var(--danger)" : "var(--border)"}`,
                           }}
                         >
                           <div>
-                            <strong style={{ fontSize: "13px", color: "#0f172a" }}>{empName}</strong>
-                            <div style={{ fontSize: "11.5px", fontFamily: "monospace", color: "#64748b" }}>
+                            <strong style={{ fontSize: "13px", color: "var(--text)" }}>{empName}</strong>
+                            <div style={{ fontSize: "11.5px", fontFamily: "var(--font-mono)", color: "var(--text-muted)" }}>
                               {emp.email} • {emp.role_key || emp.role}
                             </div>
                           </div>
@@ -981,14 +1018,13 @@ export default function DocumentsPage() {
                             onClick={() => toggleDenyUser(emp.email)}
                             style={{
                               padding: "4px 10px",
-                              borderRadius: "6px",
-                              fontSize: "12px",
+                              borderRadius: "var(--radius-full)",
+                              fontSize: "11.5px",
                               fontWeight: "700",
                               cursor: "pointer",
                               border: "none",
-                              background: isDenied ? "#ef4444" : "#ffffff",
-                              color: isDenied ? "#ffffff" : "#475569",
-                              boxShadow: isDenied ? "none" : "0 1px 2px rgba(0,0,0,0.05)",
+                              background: isDenied ? "var(--danger)" : "var(--surface)",
+                              color: isDenied ? "#ffffff" : "var(--text-muted)",
                             }}
                           >
                             {isDenied ? "DENIED" : "Allow"}
@@ -1002,8 +1038,8 @@ export default function DocumentsPage() {
 
               {/* Section 3: Folder Propagation Toggle */}
               {editingDoc.folder_path && editingDoc.folder_path !== "/" && (
-                <div style={{ background: "#f8fafc", padding: "12px 16px", borderRadius: "8px", border: "1px dashed #cbd5e1" }}>
-                  <label style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer", fontSize: "13px", color: "#0f172a", fontWeight: "600" }}>
+                <div style={{ background: "var(--surface-2)", padding: "12px 16px", borderRadius: "var(--radius-md)", border: "1px dashed var(--border)" }}>
+                  <label style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer", fontSize: "13px", color: "var(--text)", fontWeight: "600" }}>
                     <input
                       type="checkbox"
                       checked={applyToFolder}
@@ -1019,30 +1055,20 @@ export default function DocumentsPage() {
             </div>
 
             {/* Modal Footer */}
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "flex-end",
-                gap: "10px",
-                padding: "16px 24px",
-                borderTop: "1px solid #e2e8f0",
-                background: "#f8fafc",
-              }}
-            >
+            <div className="modal-actions" style={{ padding: "16px 24px", borderTop: "1px solid var(--border)" }}>
               <button
                 type="button"
-                className="btn btn-secondary"
+                className="btn-outline btn-pill"
                 onClick={() => setEditingDoc(null)}
-                style={{ padding: "8px 16px" }}
               >
                 Cancel
               </button>
               <button
                 type="button"
-                className="btn btn-primary"
+                className="btn-primary btn-pill"
                 onClick={saveAccessPermissions}
                 disabled={updatingAccess}
-                style={{ padding: "8px 20px", display: "flex", alignItems: "center", gap: "6px" }}
+                style={{ display: "flex", alignItems: "center", gap: "6px" }}
               >
                 {updatingAccess ? "Updating Qdrant ACLs…" : "Save & Update Vector ACL"}
               </button>

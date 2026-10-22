@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Settings,
   Award,
@@ -97,6 +97,19 @@ export default function SettingsPage({ user }: { user: UserProfile | null }) {
   useEffect(() => {
     setLoading(true);
     Promise.all([fetchRoles(), fetchEmployees()]).finally(() => setLoading(false));
+  }, []);
+
+  // Close modals on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setIsAddingRole(false);
+        setSelectedRoleForEmployee(null);
+        setCreatedCredentials(null);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
   // Compute all available ranks: base ranks + ranks from existing roles + custom ranks generated via "Add Rank"
@@ -303,11 +316,11 @@ export default function SettingsPage({ user }: { user: UserProfile | null }) {
       {/* Page Header */}
       <header className="page-heading" style={{ marginBottom: "24px" }}>
         <div>
-          <div className="eyebrow" style={{ display: "flex", alignItems: "center", gap: "6px", color: "#2563eb", fontWeight: "700" }}>
+          <div className="eyebrow">
             <Settings size={14} /> WORKSPACE & ORGANIZATIONAL HIERARCHY
           </div>
-          <h1 style={{ fontSize: "28px", fontWeight: "800", color: "#0f172a", margin: "6px 0" }}>Workspace Settings</h1>
-          <p className="subheading" style={{ color: "#64748b", fontSize: "14px", margin: 0 }}>
+          <h1>Workspace Settings</h1>
+          <p className="subheading">
             Configure organizational role ranks and manage employee directory profiles.
           </p>
         </div>
@@ -317,65 +330,38 @@ export default function SettingsPage({ user }: { user: UserProfile | null }) {
       {feedback && (
         <div
           className={`alert-banner ${feedback.type}`}
-          style={{
-            marginBottom: "20px",
-            padding: "12px 16px",
-            borderRadius: "8px",
-            display: "flex",
-            alignItems: "center",
-            gap: "10px",
-            background: feedback.type === "success" ? "#ecfdf5" : "#fef2f2",
-            color: feedback.type === "success" ? "#065f46" : "#991b1b",
-            border: `1px solid ${feedback.type === "success" ? "#a7f3d0" : "#fecaca"}`,
-          }}
+          style={{ marginBottom: "24px" }}
         >
           {feedback.type === "success" ? <CheckCircle size={18} /> : <AlertCircle size={18} />}
-          <span style={{ fontSize: "14px", fontWeight: "500" }}>{feedback.message}</span>
+          <span>{feedback.message}</span>
+          <button
+            type="button"
+            onClick={() => setFeedback(null)}
+            style={{ marginLeft: "auto", background: "none", border: "none", cursor: "pointer", color: "inherit" }}
+          >
+            <X size={14} />
+          </button>
         </div>
       )}
 
-      {/* Tabs Navigation: Exactly 2 Tabs as Requested */}
-      <div
-        style={{
-          display: "flex",
-          gap: "12px",
-          borderBottom: "2px solid #e2e8f0",
-          paddingBottom: "12px",
-          marginBottom: "28px",
-        }}
-      >
+      {/* Tabs Navigation: Segmented Style */}
+      <div className="segmented" style={{ maxWidth: "380px", marginBottom: "28px" }}>
         <button
-          className={`btn ${activeTab === "roles" ? "btn-primary" : "btn-secondary"}`}
+          type="button"
+          className={`seg-btn ${activeTab === "roles" ? "active" : ""}`}
           onClick={() => setActiveTab("roles")}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "8px",
-            padding: "10px 20px",
-            fontSize: "14px",
-            fontWeight: "700",
-            borderRadius: "8px",
-          }}
         >
-          <Award size={18} />
+          <Award size={16} />
           <span>Role & Hierarchy</span>
         </button>
 
         <button
-          className={`btn ${activeTab === "employees" ? "btn-primary" : "btn-secondary"}`}
+          type="button"
+          className={`seg-btn ${activeTab === "employees" ? "active" : ""}`}
           onClick={() => setActiveTab("employees")}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "8px",
-            padding: "10px 20px",
-            fontSize: "14px",
-            fontWeight: "700",
-            borderRadius: "8px",
-          }}
         >
-          <Users size={18} />
-          <span>Employees</span>
+          <Users size={16} />
+          <span>Employees ({employees.length})</span>
         </button>
       </div>
 
@@ -384,168 +370,108 @@ export default function SettingsPage({ user }: { user: UserProfile | null }) {
           ========================================================================= */}
       {activeTab === "roles" && (
         <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
-          {/* Action Toolbar */}
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              flexWrap: "wrap",
-              gap: "16px",
-              padding: "18px 24px",
-              background: "#ffffff",
-              borderRadius: "12px",
-              border: "1px solid #e2e8f0",
-              boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
-            }}
-          >
-            <div>
-              <h3 style={{ margin: 0, fontSize: "18px", fontWeight: "800", color: "#0f172a" }}>
-                Role Hierarchy Management
-              </h3>
-              <p style={{ margin: "4px 0 0", color: "#64748b", fontSize: "13px" }}>
-                Generate sequential rank levels and assign organizational roles with ranks (2, 3, 4...).
-              </p>
-            </div>
-
-            {isAdmin && (
-              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                {/* Add Rank Button: automatically generates next rank */}
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  onClick={handleAddRank}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "8px",
-                    padding: "9px 16px",
-                    fontWeight: "600",
-                    fontSize: "13px",
-                    border: "1px solid #cbd5e1",
-                    background: "#f8fafc",
-                  }}
-                  title="Generate the next numerical rank level"
-                >
-                  <Layers size={16} style={{ color: "#475569" }} />
-                  <span>Add Rank</span>
-                </button>
-
-                {/* Add Role Button */}
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  onClick={handleOpenAddRole}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "8px",
-                    padding: "9px 18px",
-                    fontWeight: "700",
-                    fontSize: "13px",
-                  }}
-                >
-                  <Plus size={16} />
-                  <span>Add Role</span>
-                </button>
+          {/* Action Toolbar Card */}
+          <div className="card-glass" style={{ padding: "20px 24px" }}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                flexWrap: "wrap",
+                gap: "16px",
+              }}
+            >
+              <div>
+                <h3 style={{ margin: 0, fontSize: "18px", fontWeight: "800", color: "var(--text)" }}>
+                  Role Hierarchy Management
+                </h3>
+                <p style={{ margin: "4px 0 0", color: "var(--text-muted)", fontSize: "13px" }}>
+                  Generate sequential rank levels and assign organizational roles with ranks (2, 3, 4…).
+                </p>
               </div>
-            )}
-          </div>
 
-          {/* Active Rank Progression Ladder */}
-          <div
-            style={{
-              padding: "16px 20px",
-              background: "#ffffff",
-              borderRadius: "12px",
-              border: "1px solid #e2e8f0",
-            }}
-          >
-            <div style={{ fontSize: "12px", fontWeight: "700", color: "#64748b", marginBottom: "10px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-              Available Rank Hierarchy Levels
+              {isAdmin && (
+                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                  <button
+                    type="button"
+                    className="btn-pill btn-secondary"
+                    onClick={handleAddRank}
+                    title="Generate the next numerical rank level"
+                  >
+                    <Layers size={15} />
+                    <span>Add Rank</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    className="btn-pill btn-primary"
+                    onClick={handleOpenAddRole}
+                  >
+                    <Plus size={15} />
+                    <span>Add Role</span>
+                  </button>
+                </div>
+              )}
             </div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", alignItems: "center" }}>
-              <span
-                style={{
-                  padding: "6px 14px",
-                  borderRadius: "20px",
-                  fontSize: "13px",
-                  fontWeight: "700",
-                  background: "#eff6ff",
-                  color: "#1d4ed8",
-                  border: "1px solid #bfdbfe",
-                }}
-              >
-                Rank 1 (Admin / Root)
-              </span>
-              {allAvailableRanks.map((rk) => (
-                <span
-                  key={rk}
-                  style={{
-                    padding: "6px 14px",
-                    borderRadius: "20px",
-                    fontSize: "13px",
-                    fontWeight: "700",
-                    background: "#f8fafc",
-                    color: "#334155",
-                    border: "1px solid #cbd5e1",
-                  }}
-                >
-                  Rank {rk}
+
+            {/* Active Rank Progression Ladder */}
+            <div style={{ marginTop: "18px", paddingTop: "14px", borderTop: "1px solid var(--border)" }}>
+              <div style={{ fontSize: "11px", fontWeight: "700", color: "var(--text-muted)", marginBottom: "10px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                Active Rank Hierarchy Levels
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", alignItems: "center" }}>
+                <span className="badge-accent">
+                  Rank 1 (Admin / Root)
                 </span>
-              ))}
+                {allAvailableRanks.map((rk) => (
+                  <span
+                    key={rk}
+                    className="chip"
+                    style={{ fontWeight: "700" }}
+                  >
+                    Rank {rk}
+                  </span>
+                ))}
+              </div>
             </div>
           </div>
 
           {/* Roles Cards Grid */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: "16px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: "18px" }}>
             {roles.map((r) => {
               const count = getEmployeesForRole(r).length;
               return (
                 <div
                   key={r.id || r.key}
+                  className="card-glass"
                   style={{
-                    background: "#ffffff",
-                    borderRadius: "12px",
-                    border: "1px solid #e2e8f0",
-                    padding: "20px",
+                    padding: "22px",
                     display: "flex",
                     flexDirection: "column",
                     justifyContent: "space-between",
-                    boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
-                    borderLeft: `5px solid ${r.rank_level === 1 ? "#2563eb" : r.rank_level === 2 ? "#8b5cf6" : r.rank_level === 3 ? "#0ea5e9" : "#64748b"}`,
+                    borderLeft: `4px solid ${r.rank_level === 1 ? "var(--palette-sky)" : r.rank_level === 2 ? "var(--palette-purple)" : r.rank_level === 3 ? "var(--palette-pink)" : "var(--palette-amber)"}`,
                   }}
                 >
                   <div>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "12px" }}>
                       <div>
-                        <strong style={{ fontSize: "17px", color: "#0f172a", display: "block" }}>{r.name}</strong>
-                        <span style={{ fontSize: "12px", fontFamily: "monospace", color: "#64748b" }}>
+                        <strong style={{ fontSize: "17px", color: "var(--text)", display: "block" }}>{r.name}</strong>
+                        <span style={{ fontSize: "12px", fontFamily: "monospace", color: "var(--text-muted)" }}>
                           key: {r.key}
                         </span>
                       </div>
-                      <span
-                        style={{
-                          padding: "4px 12px",
-                          borderRadius: "20px",
-                          fontSize: "12px",
-                          fontWeight: "800",
-                          background: r.rank_level === 1 ? "#eff6ff" : "#f1f5f9",
-                          color: r.rank_level === 1 ? "#1d4ed8" : "#334155",
-                          border: `1px solid ${r.rank_level === 1 ? "#bfdbfe" : "#cbd5e1"}`,
-                        }}
-                      >
+                      <span className={r.rank_level === 1 ? "badge-accent" : "badge-info"}>
                         RANK {r.rank_level}
                       </span>
                     </div>
 
-                    <p style={{ fontSize: "13px", color: "#64748b", margin: "0 0 16px 0", minHeight: "36px" }}>
+                    <p style={{ fontSize: "13px", color: "var(--text-muted)", margin: "0 0 16px 0", minHeight: "36px" }}>
                       {r.description || `Role level ${r.rank_level} hierarchy designation.`}
                     </p>
 
-                    <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", color: "#475569" }}>
-                      <Users size={14} style={{ color: "#94a3b8" }} />
-                      <strong>{count}</strong> {count === 1 ? "Employee" : "Employees"} assigned
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12.5px", color: "var(--text-muted)" }}>
+                      <Users size={14} style={{ color: "var(--palette-sky)" }} />
+                      <strong style={{ color: "var(--text)" }}>{count}</strong> {count === 1 ? "Employee" : "Employees"} assigned
                     </div>
                   </div>
 
@@ -554,27 +480,15 @@ export default function SettingsPage({ user }: { user: UserProfile | null }) {
                       style={{
                         display: "flex",
                         justifyContent: "flex-end",
-                        gap: "8px",
                         paddingTop: "14px",
                         marginTop: "16px",
-                        borderTop: "1px solid #f1f5f9",
+                        borderTop: "1px solid var(--border)",
                       }}
                     >
                       <button
                         type="button"
                         onClick={() => r.id && handleDeleteRole(r.id, r.name)}
-                        style={{
-                          background: "none",
-                          border: "none",
-                          cursor: "pointer",
-                          color: "#ef4444",
-                          fontSize: "12px",
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "4px",
-                          padding: "4px 8px",
-                          borderRadius: "6px",
-                        }}
+                        className="ent-delete-btn"
                         title="Delete Role"
                       >
                         <Trash2 size={14} />
@@ -593,20 +507,15 @@ export default function SettingsPage({ user }: { user: UserProfile | null }) {
           TAB 2: Employees
           ========================================================================= */}
       {activeTab === "employees" && (
-        <div style={{ display: "flex", flexDirection: "column", gap: "32px" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "28px" }}>
           {roles.map((role) => {
             const roleEmployees = getEmployeesForRole(role);
 
             return (
               <section
                 key={role.id || role.key}
-                style={{
-                  background: "#ffffff",
-                  borderRadius: "14px",
-                  border: "1px solid #e2e8f0",
-                  padding: "24px",
-                  boxShadow: "0 1px 4px rgba(0,0,0,0.03)",
-                }}
+                className="card-glass"
+                style={{ padding: "24px" }}
               >
                 {/* Section Header: Role Name, Rank Badge, and "Add Info" Button */}
                 <div
@@ -617,44 +526,34 @@ export default function SettingsPage({ user }: { user: UserProfile | null }) {
                     flexWrap: "wrap",
                     gap: "12px",
                     paddingBottom: "16px",
-                    borderBottom: "1px solid #f1f5f9",
+                    borderBottom: "1px solid var(--border)",
                     marginBottom: "18px",
                   }}
                 >
                   <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
                     <div
                       style={{
-                        width: "36px",
-                        height: "36px",
+                        width: "38px",
+                        height: "38px",
                         borderRadius: "10px",
-                        background: role.rank_level === 1 ? "#eff6ff" : role.rank_level === 2 ? "#faf5ff" : "#f0fdf4",
-                        color: role.rank_level === 1 ? "#2563eb" : role.rank_level === 2 ? "#7c3aed" : "#16a34a",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
+                        background: role.rank_level === 1 ? "rgba(56, 189, 248, 0.12)" : "rgba(168, 85, 247, 0.12)",
+                        color: role.rank_level === 1 ? "var(--palette-sky)" : "var(--palette-purple)",
+                        display: "grid",
+                        placeItems: "center",
                         fontWeight: "700",
                       }}
                     >
                       <Shield size={18} />
                     </div>
                     <div>
-                      <h3 style={{ margin: 0, fontSize: "18px", fontWeight: "800", color: "#0f172a" }}>
+                      <h3 style={{ margin: 0, fontSize: "18px", fontWeight: "800", color: "var(--text)" }}>
                         {role.name}
                       </h3>
                       <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "3px" }}>
-                        <span
-                          style={{
-                            padding: "2px 8px",
-                            borderRadius: "12px",
-                            fontSize: "11px",
-                            fontWeight: "700",
-                            background: "#f1f5f9",
-                            color: "#334155",
-                          }}
-                        >
+                        <span className="chip" style={{ fontSize: "11px", padding: "2px 8px" }}>
                           Rank {role.rank_level}
                         </span>
-                        <span style={{ fontSize: "12px", color: "#64748b" }}>
+                        <span style={{ fontSize: "12px", color: "var(--text-muted)" }}>
                           • {roleEmployees.length} {roleEmployees.length === 1 ? "member" : "members"}
                         </span>
                       </div>
@@ -664,39 +563,30 @@ export default function SettingsPage({ user }: { user: UserProfile | null }) {
                   {isAdmin && (
                     <button
                       type="button"
-                      className="btn btn-primary"
+                      className="btn-pill btn-primary"
                       onClick={() => handleOpenAddEmployee(role)}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "6px",
-                        padding: "8px 16px",
-                        fontSize: "13px",
-                        fontWeight: "700",
-                        borderRadius: "8px",
-                      }}
                     >
                       <UserPlus size={15} />
-                      <span>Add Info</span>
+                      <span>Add Employee</span>
                     </button>
                   )}
                 </div>
 
-                {/* Employees List: Long Rectangle Cards */}
+                {/* Employees List */}
                 {roleEmployees.length === 0 ? (
                   <div
                     style={{
                       padding: "24px",
                       textAlign: "center",
-                      background: "#f8fafc",
-                      borderRadius: "10px",
-                      border: "1px dashed #cbd5e1",
-                      color: "#64748b",
+                      background: "var(--bg-subtle)",
+                      borderRadius: "var(--radius-lg)",
+                      border: "1px dashed var(--border)",
+                      color: "var(--text-muted)",
                       fontSize: "13.5px",
                     }}
                   >
                     No employees added to <strong>{role.name}</strong> yet. Click the{" "}
-                    <strong>Add Info</strong> button above to add someone.
+                    <strong>Add Employee</strong> button above to invite someone.
                   </div>
                 ) : (
                   <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
@@ -714,10 +604,10 @@ export default function SettingsPage({ user }: { user: UserProfile | null }) {
                             flexWrap: "wrap",
                             gap: "16px",
                             padding: "14px 20px",
-                            background: "#ffffff",
-                            borderRadius: "10px",
-                            border: "1px solid #e2e8f0",
-                            boxShadow: "0 1px 2px rgba(0,0,0,0.03)",
+                            background: "var(--surface)",
+                            borderRadius: "var(--radius-lg)",
+                            border: "1px solid var(--border)",
+                            boxShadow: "var(--shadow-xs)",
                             transition: "all 0.15s ease",
                           }}
                         >
@@ -728,25 +618,23 @@ export default function SettingsPage({ user }: { user: UserProfile | null }) {
                                 width: "40px",
                                 height: "40px",
                                 borderRadius: "10px",
-                                background: "linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)",
-                                color: "#2563eb",
-                                display: "flex",
-                                alignItems: "center",
-                                justifyItems: "center",
-                                justifyContent: "center",
+                                background: "var(--palette-gradient)",
+                                color: "#fff",
+                                display: "grid",
+                                placeItems: "center",
                                 fontWeight: "800",
                                 fontSize: "15px",
-                                border: "1px solid #bfdbfe",
                                 flexShrink: 0,
+                                boxShadow: "0 2px 8px rgba(56, 189, 248, 0.25)",
                               }}
                             >
                               {initial}
                             </div>
                             <div>
-                              <div style={{ fontWeight: "700", color: "#0f172a", fontSize: "15px" }}>
+                              <div style={{ fontWeight: "700", color: "var(--text)", fontSize: "14.5px" }}>
                                 {displayName}
                               </div>
-                              <div style={{ fontSize: "12px", color: "#64748b" }}>
+                              <div style={{ fontSize: "12px", color: "var(--text-muted)" }}>
                                 {role.name}
                               </div>
                             </div>
@@ -758,30 +646,19 @@ export default function SettingsPage({ user }: { user: UserProfile | null }) {
                               display: "flex",
                               alignItems: "center",
                               gap: "8px",
-                              color: "#334155",
                               fontSize: "13.5px",
                               flex: "1 1 240px",
                             }}
                           >
-                            <Mail size={15} style={{ color: "#94a3b8" }} />
-                            <span style={{ fontFamily: "monospace", color: "#1e293b", fontWeight: "500" }}>
+                            <Mail size={15} style={{ color: "var(--text-muted)" }} />
+                            <span style={{ fontFamily: "monospace", color: "var(--text)", fontWeight: "500" }}>
                               {emp.email}
                             </span>
                           </div>
 
-                          {/* 3. Rank */}
+                          {/* 3. Rank & Actions */}
                           <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
-                            <span
-                              style={{
-                                padding: "5px 14px",
-                                borderRadius: "20px",
-                                fontSize: "12px",
-                                fontWeight: "700",
-                                background: "#f1f5f9",
-                                color: "#334155",
-                                border: "1px solid #cbd5e1",
-                              }}
-                            >
+                            <span className="chip" style={{ fontWeight: "700" }}>
                               Rank {emp.rank_level ?? role.rank_level}
                             </span>
 
@@ -789,20 +666,10 @@ export default function SettingsPage({ user }: { user: UserProfile | null }) {
                               <button
                                 type="button"
                                 onClick={() => handleDeleteEmployee(emp.id, displayName)}
-                                style={{
-                                  background: "none",
-                                  border: "none",
-                                  cursor: "pointer",
-                                  color: "#94a3b8",
-                                  padding: "6px",
-                                  borderRadius: "6px",
-                                  transition: "color 0.15s ease",
-                                }}
-                                onMouseEnter={(e) => (e.currentTarget.style.color = "#ef4444")}
-                                onMouseLeave={(e) => (e.currentTarget.style.color = "#94a3b8")}
+                                className="ent-delete-btn"
                                 title="Remove Employee"
                               >
-                                <Trash2 size={16} />
+                                <Trash2 size={15} />
                               </button>
                             )}
                           </div>
@@ -817,16 +684,9 @@ export default function SettingsPage({ user }: { user: UserProfile | null }) {
 
           {/* Unassigned employees if any exist in database */}
           {unassignedEmployees.length > 0 && (
-            <section
-              style={{
-                background: "#ffffff",
-                borderRadius: "14px",
-                border: "1px solid #e2e8f0",
-                padding: "24px",
-              }}
-            >
-              <div style={{ paddingBottom: "12px", borderBottom: "1px solid #f1f5f9", marginBottom: "16px" }}>
-                <h3 style={{ margin: 0, fontSize: "17px", fontWeight: "700", color: "#0f172a" }}>
+            <section className="card-glass" style={{ padding: "24px" }}>
+              <div style={{ paddingBottom: "12px", borderBottom: "1px solid var(--border)", marginBottom: "16px" }}>
+                <h3 style={{ margin: 0, fontSize: "17px", fontWeight: "700", color: "var(--text)" }}>
                   Other Workspace Staff ({unassignedEmployees.length})
                 </h3>
               </div>
@@ -839,27 +699,18 @@ export default function SettingsPage({ user }: { user: UserProfile | null }) {
                       alignItems: "center",
                       justifyContent: "space-between",
                       padding: "14px 20px",
-                      background: "#ffffff",
-                      borderRadius: "10px",
-                      border: "1px solid #e2e8f0",
+                      background: "var(--surface)",
+                      borderRadius: "var(--radius-lg)",
+                      border: "1px solid var(--border)",
                     }}
                   >
-                    <div style={{ fontWeight: "700", color: "#0f172a", fontSize: "14px" }}>
+                    <div style={{ fontWeight: "700", color: "var(--text)", fontSize: "14px" }}>
                       {emp.display_name || emp.email.split("@")[0]}
                     </div>
-                    <div style={{ fontFamily: "monospace", color: "#334155", fontSize: "13px" }}>
+                    <div style={{ fontFamily: "monospace", color: "var(--text-muted)", fontSize: "13px" }}>
                       {emp.email}
                     </div>
-                    <span
-                      style={{
-                        padding: "4px 12px",
-                        borderRadius: "20px",
-                        fontSize: "12px",
-                        fontWeight: "700",
-                        background: "#f1f5f9",
-                        color: "#475569",
-                      }}
-                    >
+                    <span className="chip">
                       Rank {emp.rank_level}
                     </span>
                   </div>
@@ -874,83 +725,47 @@ export default function SettingsPage({ user }: { user: UserProfile | null }) {
           MODAL: Add Role Dialog
           ========================================================================= */}
       {isAddingRole && (
-        <div
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: "rgba(15, 23, 42, 0.6)",
-            backdropFilter: "blur(4px)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 1000,
-            padding: "20px",
-          }}
-        >
-          <div
-            style={{
-              background: "#ffffff",
-              borderRadius: "14px",
-              width: "100%",
-              maxWidth: "460px",
-              boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)",
-              overflow: "hidden",
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                padding: "18px 24px",
-                borderBottom: "1px solid #e2e8f0",
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                <Award size={18} style={{ color: "#2563eb" }} />
-                <h3 style={{ margin: 0, fontSize: "17px", fontWeight: "700", color: "#0f172a" }}>Add New Role</h3>
+        <div className="ent-modal-overlay" onClick={() => setIsAddingRole(false)}>
+          <div className="ent-modal-card animated-scale-up" onClick={(e) => e.stopPropagation()}>
+            <div className="ent-modal-header">
+              <div className="ent-modal-icon-badge">
+                <Award size={20} />
+              </div>
+              <div className="ent-modal-title-wrap">
+                <h3>Add New Role</h3>
+                <p>Define an organizational role designation and assign a hierarchy rank.</p>
               </div>
               <button
                 type="button"
+                className="ent-modal-close-btn"
                 onClick={() => setIsAddingRole(false)}
-                style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8" }}
+                title="Close modal"
               >
                 <X size={18} />
               </button>
             </div>
 
-            <form onSubmit={handleSaveRole} style={{ padding: "24px", display: "flex", flexDirection: "column", gap: "18px" }}>
-              {/* Option: Name of Role (Text box) */}
-              <div>
-                <label style={{ display: "block", fontSize: "13px", fontWeight: "600", color: "#334155", marginBottom: "6px" }}>
-                  Name of Role *
-                </label>
+            <form onSubmit={handleSaveRole} className="ent-modal-form">
+              <div className="ent-form-group">
+                <label className="ent-form-label">Name of Role *</label>
                 <input
                   type="text"
-                  className="input-field"
+                  className="ent-form-input"
                   placeholder="e.g. HR, Finance, Operations, Team Lead"
                   value={newRoleName}
                   onChange={(e) => setNewRoleName(e.target.value)}
                   required
                   autoFocus
-                  style={{ width: "100%", padding: "10px 14px", borderRadius: "8px", border: "1px solid #cbd5e1" }}
                 />
               </div>
 
-              {/* Option: Rank he can select */}
-              <div>
-                <label style={{ display: "block", fontSize: "13px", fontWeight: "600", color: "#334155", marginBottom: "6px" }}>
-                  Select Rank *
-                </label>
+              <div className="ent-form-group">
+                <label className="ent-form-label">Select Rank *</label>
                 <select
-                  className="input-field"
+                  className="ent-form-input"
                   value={newRoleRank}
                   onChange={(e) => setNewRoleRank(Number(e.target.value))}
                   required
-                  style={{ width: "100%", padding: "10px 14px", borderRadius: "8px", border: "1px solid #cbd5e1" }}
                 >
                   {allAvailableRanks.map((rk) => (
                     <option key={rk} value={rk}>
@@ -958,22 +773,21 @@ export default function SettingsPage({ user }: { user: UserProfile | null }) {
                     </option>
                   ))}
                 </select>
-                <span style={{ fontSize: "12px", color: "#64748b", marginTop: "4px", display: "block" }}>
+                <span className="ent-field-hint">
                   Need a higher rank? Click <strong>Add Rank</strong> on the dashboard to generate the next level.
                 </span>
               </div>
 
-              <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "8px" }}>
+              <div className="ent-modal-actions">
                 <button
                   type="button"
-                  className="btn btn-secondary"
+                  className="btn-pill btn-secondary"
                   onClick={() => setIsAddingRole(false)}
-                  style={{ padding: "8px 16px" }}
                 >
                   Cancel
                 </button>
-                <button type="submit" className="btn btn-primary" style={{ padding: "8px 20px" }}>
-                  Add Role
+                <button type="submit" className="btn-pill btn-primary">
+                  Save Role
                 </button>
               </div>
             </form>
@@ -985,98 +799,57 @@ export default function SettingsPage({ user }: { user: UserProfile | null }) {
           MODAL: Add Employee Info Dialog
           ========================================================================= */}
       {selectedRoleForEmployee && (
-        <div
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: "rgba(15, 23, 42, 0.6)",
-            backdropFilter: "blur(4px)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 1000,
-            padding: "20px",
-          }}
-        >
-          <div
-            style={{
-              background: "#ffffff",
-              borderRadius: "14px",
-              width: "100%",
-              maxWidth: "500px",
-              boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)",
-              overflow: "hidden",
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                padding: "18px 24px",
-                borderBottom: "1px solid #e2e8f0",
-              }}
-            >
-              <div>
-                <h3 style={{ margin: 0, fontSize: "17px", fontWeight: "700", color: "#0f172a" }}>
-                  Add Employee Info
-                </h3>
-                <span style={{ fontSize: "12px", color: "#64748b" }}>
+        <div className="ent-modal-overlay" onClick={() => setSelectedRoleForEmployee(null)}>
+          <div className="ent-modal-card animated-scale-up" onClick={(e) => e.stopPropagation()}>
+            <div className="ent-modal-header">
+              <div className="ent-modal-icon-badge">
+                <UserPlus size={20} />
+              </div>
+              <div className="ent-modal-title-wrap">
+                <h3>Add Employee Info</h3>
+                <p>
                   Assigning to <strong>{selectedRoleForEmployee.name}</strong> (Rank {selectedRoleForEmployee.rank_level})
-                </span>
+                </p>
               </div>
               <button
                 type="button"
+                className="ent-modal-close-btn"
                 onClick={() => setSelectedRoleForEmployee(null)}
-                style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8" }}
+                title="Close modal"
               >
                 <X size={18} />
               </button>
             </div>
 
-            <form onSubmit={handleSaveEmployee} style={{ padding: "24px", display: "flex", flexDirection: "column", gap: "16px" }}>
-              {/* Employee Name */}
-              <div>
-                <label style={{ display: "block", fontSize: "13px", fontWeight: "600", color: "#334155", marginBottom: "6px" }}>
-                  Employee Name *
-                </label>
+            <form onSubmit={handleSaveEmployee} className="ent-modal-form">
+              <div className="ent-form-group">
+                <label className="ent-form-label">Employee Name *</label>
                 <input
                   type="text"
-                  className="input-field"
+                  className="ent-form-input"
                   placeholder={`e.g. John Doe (${selectedRoleForEmployee.name})`}
                   value={empName}
                   onChange={(e) => setEmpName(e.target.value)}
                   required
                   autoFocus
-                  style={{ width: "100%", padding: "10px 14px", borderRadius: "8px", border: "1px solid #cbd5e1" }}
                 />
               </div>
 
-              {/* Employee Email ID */}
-              <div>
-                <label style={{ display: "block", fontSize: "13px", fontWeight: "600", color: "#334155", marginBottom: "6px" }}>
-                  Employee Email ID *
-                </label>
+              <div className="ent-form-group">
+                <label className="ent-form-label">Employee Email ID *</label>
                 <input
                   type="email"
-                  className="input-field"
+                  className="ent-form-input"
                   placeholder="e.g. employee@company.com"
                   value={empEmail}
                   onChange={(e) => setEmpEmail(e.target.value)}
                   required
-                  style={{ width: "100%", padding: "10px 14px", borderRadius: "8px", border: "1px solid #cbd5e1" }}
                 />
               </div>
 
-              {/* Temporary Password (Generated for one-time setup) */}
-              <div>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
-                  <label style={{ fontSize: "13px", fontWeight: "600", color: "#334155" }}>
-                    One-Time Temporary Password
-                  </label>
+              <div className="ent-form-group">
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <label className="ent-form-label">One-Time Temporary Password</label>
                   <button
                     type="button"
                     onClick={() => {
@@ -1086,13 +859,13 @@ export default function SettingsPage({ user }: { user: UserProfile | null }) {
                     style={{
                       background: "none",
                       border: "none",
-                      color: "#2563eb",
+                      color: "var(--palette-sky)",
                       fontSize: "12px",
                       cursor: "pointer",
                       display: "flex",
                       alignItems: "center",
                       gap: "4px",
-                      fontWeight: "600",
+                      fontWeight: "700",
                     }}
                   >
                     <RefreshCw size={12} /> Regenerate
@@ -1104,49 +877,37 @@ export default function SettingsPage({ user }: { user: UserProfile | null }) {
                     type="text"
                     readOnly
                     value={empTempPassword}
-                    style={{
-                      flex: 1,
-                      padding: "10px 14px",
-                      borderRadius: "8px",
-                      border: "1px solid #cbd5e1",
-                      background: "#f8fafc",
-                      fontFamily: "monospace",
-                      fontSize: "14px",
-                      fontWeight: "700",
-                      color: "#0f172a",
-                    }}
+                    className="ent-form-input font-mono"
+                    style={{ fontWeight: "700" }}
                   />
                   <button
                     type="button"
                     onClick={handleCopyPassword}
-                    className="btn btn-secondary"
-                    style={{ display: "flex", alignItems: "center", gap: "4px", padding: "10px 14px" }}
+                    className="btn-pill btn-secondary"
                     title="Copy Password"
                   >
-                    {copiedPassword ? <Check size={16} style={{ color: "#16a34a" }} /> : <Copy size={16} />}
+                    {copiedPassword ? <Check size={16} className="text-emerald-500" /> : <Copy size={16} />}
                   </button>
                 </div>
-                <span style={{ fontSize: "11.5px", color: "#64748b", marginTop: "4px", display: "block" }}>
+                <span className="ent-field-hint">
                   This temporary password is automatically generated. The employee can use it to log in and change their password.
                 </span>
               </div>
 
-              <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "12px" }}>
+              <div className="ent-modal-actions">
                 <button
                   type="button"
-                  className="btn btn-secondary"
+                  className="btn-pill btn-secondary"
                   onClick={() => setSelectedRoleForEmployee(null)}
-                  style={{ padding: "8px 16px" }}
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="btn btn-primary"
+                  className="btn-pill btn-primary"
                   disabled={isSubmittingEmp}
-                  style={{ padding: "8px 20px" }}
                 >
-                  {isSubmittingEmp ? "Saving..." : "Save Employee"}
+                  {isSubmittingEmp ? "Saving…" : "Save Employee"}
                 </button>
               </div>
             </form>
@@ -1158,37 +919,13 @@ export default function SettingsPage({ user }: { user: UserProfile | null }) {
           MODAL: One-Time Credentials Display After Creation
           ========================================================================= */}
       {createdCredentials && (
-        <div
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: "rgba(15, 23, 42, 0.6)",
-            backdropFilter: "blur(4px)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 1000,
-            padding: "20px",
-          }}
-        >
-          <div
-            style={{
-              background: "#ffffff",
-              borderRadius: "14px",
-              width: "100%",
-              maxWidth: "480px",
-              boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
-              overflow: "hidden",
-            }}
-          >
+        <div className="ent-modal-overlay" onClick={() => setCreatedCredentials(null)}>
+          <div className="ent-modal-card animated-scale-up" onClick={(e) => e.stopPropagation()}>
             <div
               style={{
                 padding: "20px 24px",
-                background: "#f0fdf4",
-                borderBottom: "1px solid #bbf7d0",
+                background: "rgba(16, 185, 129, 0.1)",
+                borderBottom: "1px solid rgba(16, 185, 129, 0.25)",
                 display: "flex",
                 alignItems: "center",
                 gap: "12px",
@@ -1196,56 +933,56 @@ export default function SettingsPage({ user }: { user: UserProfile | null }) {
             >
               <div
                 style={{
-                  width: "36px",
-                  height: "36px",
+                  width: "38px",
+                  height: "38px",
                   borderRadius: "50%",
-                  background: "#22c55e",
+                  background: "#10b981",
                   color: "#ffffff",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
+                  display: "grid",
+                  placeItems: "center",
+                  flexShrink: 0,
                 }}
               >
                 <Check size={20} />
               </div>
               <div>
-                <h3 style={{ margin: 0, fontSize: "17px", fontWeight: "800", color: "#14532d" }}>
+                <h3 style={{ margin: 0, fontSize: "17px", fontWeight: "800", color: "var(--text)" }}>
                   Employee Added Successfully!
                 </h3>
-                <span style={{ fontSize: "12px", color: "#166534" }}>
+                <span style={{ fontSize: "12.5px", color: "var(--text-muted)" }}>
                   Here are the one-time login credentials for distribution.
                 </span>
               </div>
             </div>
 
-            <div style={{ padding: "24px", display: "flex", flexDirection: "column", gap: "14px" }}>
-              <div style={{ background: "#f8fafc", padding: "14px 18px", borderRadius: "10px", border: "1px solid #e2e8f0" }}>
+            <div style={{ padding: "24px", display: "flex", flexDirection: "column", gap: "16px" }}>
+              <div style={{ background: "var(--bg-subtle)", padding: "16px 20px", borderRadius: "var(--radius-lg)", border: "1px solid var(--border)" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "8px" }}>
-                  <span style={{ fontSize: "12px", color: "#64748b" }}>NAME</span>
-                  <strong style={{ fontSize: "13px", color: "#0f172a" }}>{createdCredentials.name}</strong>
+                  <span style={{ fontSize: "12px", color: "var(--text-muted)", fontWeight: "600" }}>NAME</span>
+                  <strong style={{ fontSize: "13.5px", color: "var(--text)" }}>{createdCredentials.name}</strong>
                 </div>
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "8px" }}>
-                  <span style={{ fontSize: "12px", color: "#64748b" }}>EMAIL</span>
-                  <span style={{ fontSize: "13px", fontFamily: "monospace", color: "#0f172a" }}>{createdCredentials.email}</span>
+                  <span style={{ fontSize: "12px", color: "var(--text-muted)", fontWeight: "600" }}>EMAIL</span>
+                  <span style={{ fontSize: "13px", fontFamily: "monospace", color: "var(--text)" }}>{createdCredentials.email}</span>
                 </div>
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "8px" }}>
-                  <span style={{ fontSize: "12px", color: "#64748b" }}>ROLE & RANK</span>
-                  <strong style={{ fontSize: "13px", color: "#0f172a" }}>
+                  <span style={{ fontSize: "12px", color: "var(--text-muted)", fontWeight: "600" }}>ROLE & RANK</span>
+                  <strong style={{ fontSize: "13px", color: "var(--palette-sky)" }}>
                     {createdCredentials.role} (Rank {createdCredentials.rank})
                   </strong>
                 </div>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: "8px", borderTop: "1px dashed #cbd5e1" }}>
-                  <span style={{ fontSize: "12px", fontWeight: "700", color: "#1e293b" }}>TEMP PASSWORD</span>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: "10px", borderTop: "1px dashed var(--border)" }}>
+                  <span style={{ fontSize: "12px", fontWeight: "700", color: "var(--text)" }}>TEMP PASSWORD</span>
                   <span
                     style={{
                       fontSize: "14px",
                       fontFamily: "monospace",
                       fontWeight: "800",
-                      color: "#2563eb",
-                      background: "#eff6ff",
-                      padding: "2px 8px",
+                      color: "var(--palette-sky)",
+                      background: "rgba(56, 189, 248, 0.12)",
+                      padding: "3px 10px",
                       borderRadius: "6px",
-                      border: "1px solid #bfdbfe",
+                      border: "1px solid rgba(56, 189, 248, 0.25)",
                     }}
                   >
                     {createdCredentials.password}
@@ -1256,18 +993,17 @@ export default function SettingsPage({ user }: { user: UserProfile | null }) {
               <div style={{ display: "flex", gap: "10px" }}>
                 <button
                   type="button"
-                  className="btn btn-primary"
+                  className="btn-pill btn-primary"
                   onClick={handleCopyCredentials}
-                  style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}
+                  style={{ flex: 1, justifyContent: "center" }}
                 >
                   {copiedCreds ? <Check size={16} /> : <Copy size={16} />}
                   <span>{copiedCreds ? "Credentials Copied!" : "Copy Credentials"}</span>
                 </button>
                 <button
                   type="button"
-                  className="btn btn-secondary"
+                  className="btn-pill btn-secondary"
                   onClick={() => setCreatedCredentials(null)}
-                  style={{ padding: "8px 16px" }}
                 >
                   Close
                 </button>

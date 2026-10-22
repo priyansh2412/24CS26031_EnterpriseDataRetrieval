@@ -194,6 +194,19 @@ export default function TeamsPage({ currentUser }: TeamsPageProps) {
     }
   }, [activeTeamId]);
 
+  // Close modals on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setShowCreateModal(false);
+        setShowAddMemberModal(false);
+        setShowJiraModal(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
   // Polling every 4 seconds while active and visible
   useEffect(() => {
     if (!activeTeamId) return;
@@ -478,15 +491,28 @@ export default function TeamsPage({ currentUser }: TeamsPageProps) {
 
       <div className="teams-layout">
         {/* Left Sidebar: Team List */}
-        <aside className="teams-sidebar-card card">
-          <div className="card-header-title">
-            <FolderKanban size={16} />
-            <span>Active Project Teams ({teams.length})</span>
+        <aside className="teams-sidebar-card card-glass">
+          <div className="teams-sidebar-header">
+            <div className="card-header-title">
+              <FolderKanban size={16} />
+              <span>Project Teams ({teams.length})</span>
+            </div>
+            <button
+              type="button"
+              className="btn-pill btn-primary"
+              style={{ fontSize: "12px", padding: "4px 10px" }}
+              onClick={() => setShowCreateModal(true)}
+              title="Build New Team"
+            >
+              <Plus size={13} /> New team
+            </button>
           </div>
 
           <div className="team-list">
             {teams.length === 0 ? (
-              <div className="empty-subtext">No active project teams yet. Click "Build New Team" to create one.</div>
+              <div className="empty-subtext" style={{ padding: "24px 16px", textAlign: "center", color: "var(--text-muted)", fontSize: "12.5px" }}>
+                No active project teams yet. Click "New team" to create one.
+              </div>
             ) : (
               teams.map((t) => (
                 <div
@@ -494,9 +520,14 @@ export default function TeamsPage({ currentUser }: TeamsPageProps) {
                   className={`team-item-card ${activeTeamId === t.id ? "active" : ""}`}
                   onClick={() => setActiveTeamId(t.id)}
                 >
-                  <div className="team-item-title">{t.name}</div>
-                  <div className="team-project-tag">Project: {t.project_name}</div>
-                  <div className="team-meta">{t.members.length} Members</div>
+                  <div className="team-avatar">{(t.name || "T").slice(0, 2).toUpperCase()}</div>
+                  <div className="team-item-info">
+                    <div className="team-item-title">{t.name}</div>
+                    <div className="team-project-tag">
+                      <FolderKanban size={12} /> {t.project_name}
+                    </div>
+                    <div className="team-meta">{t.members.length} members</div>
+                  </div>
                 </div>
               ))
             )}
@@ -505,26 +536,52 @@ export default function TeamsPage({ currentUser }: TeamsPageProps) {
 
         {/* Right Area: Team Workspace & Shared Chatbot */}
         {currentTeam ? (
-          <main className="team-workspace-card card">
+          <main className="team-workspace-card card-glass">
             <header className="team-workspace-header">
               <div>
                 <h2>{currentTeam.name}</h2>
-                <div className="project-badge">
-                  <FolderKanban size={14} /> Project Scope: {currentTeam.project_name}
+                <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap", marginTop: "4px" }}>
+                  <div className="project-badge">
+                    <FolderKanban size={14} /> Project Scope: {currentTeam.project_name}
+                  </div>
+                  {/* Overlapping member avatar stack */}
+                  <div className="avatar-stack">
+                    {currentTeam.members.slice(0, 5).map((m) => (
+                      <div
+                        key={m.id}
+                        className="avatar-stack-item"
+                        title={`${m.user_email} (${m.role_in_team})`}
+                      >
+                        {(m.user_email || "U").slice(0, 1).toUpperCase()}
+                      </div>
+                    ))}
+                    {currentTeam.members.length > 5 && (
+                      <div className="avatar-stack-more">
+                        +{currentTeam.members.length - 5}
+                      </div>
+                    )}
+                  </div>
                 </div>
                 {currentTeam.description && <p className="team-desc">{currentTeam.description}</p>}
               </div>
               <div className="team-header-actions">
                 <button
                   type="button"
-                  className="btn-secondary jira-header-btn"
+                  className="btn-pill btn-secondary jira-header-btn"
                   onClick={openJiraSettingsModal}
                   title="Configure Jira project integration for this team"
                 >
-                  <Tag size={14} /> Jira
+                  <Tag size={14} />
+                  <span>Jira</span>
+                  <span className={`jira-status-dot ${jiraStatus?.configured ? "connected" : "disconnected"}`} />
                 </button>
-                <button className="btn-secondary" onClick={() => setShowAddMemberModal(true)}>
-                  <UserPlus size={15} /> Add Member
+                <button
+                  type="button"
+                  className="btn-pill btn-secondary"
+                  onClick={() => setShowAddMemberModal(true)}
+                >
+                  <UserPlus size={15} />
+                  <span>Add member</span>
                 </button>
               </div>
             </header>
@@ -618,13 +675,14 @@ export default function TeamsPage({ currentUser }: TeamsPageProps) {
                     const isTeamMsg = msg.message_type === "team";
 
                     if (isTeamMsg) {
+                      const isOwn = currentUser && msg.user_email === currentUser.email;
                       // Team mode: Single bubble for team members
                       return (
                         <div key={msg.id} className="team-chat-thread team-mode-thread">
-                          <div className="chat-msg user-msg team-member-msg">
+                          <div className={`chat-msg team-member-msg ${isOwn ? "own-msg" : "other-msg"}`}>
                             <div className="msg-header">
-                              <strong className="sender">{msg.user_email}</strong>
-                              <span className="time">{new Date(msg.created_at).toLocaleTimeString()}</span>
+                              <strong className="sender">{isOwn ? "You" : msg.user_email}</strong>
+                              <span className="time">{new Date(msg.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
                             </div>
                             <div className="msg-body">{msg.message}</div>
                           </div>
@@ -811,10 +869,10 @@ export default function TeamsPage({ currentUser }: TeamsPageProps) {
 
               {/* Mode Toggle Control Bar */}
               <div className="chat-mode-control-bar">
-                <div className="chat-mode-toggle" role="radiogroup" aria-label="Chat Mode">
+                <div className="segmented" role="radiogroup" aria-label="Chat Mode">
                   <button
                     type="button"
-                    className={`chat-mode-btn ${chatMode === "ai" ? "active" : ""}`}
+                    className={`segmented-btn ${chatMode === "ai" ? "active" : ""}`}
                     onClick={() => setChatMode("ai")}
                     title="Ask the Team AI Assistant questions about documents and project scope"
                   >
@@ -823,7 +881,7 @@ export default function TeamsPage({ currentUser }: TeamsPageProps) {
                   </button>
                   <button
                     type="button"
-                    className={`chat-mode-btn ${chatMode === "team" ? "active" : ""}`}
+                    className={`segmented-btn ${chatMode === "team" ? "active" : ""}`}
                     onClick={() => setChatMode("team")}
                     title="Send a message to team members. Tasks & meetings can be exported to Jira."
                   >
@@ -839,40 +897,59 @@ export default function TeamsPage({ currentUser }: TeamsPageProps) {
               </div>
 
               {/* Chat Input Bar */}
-              <form onSubmit={handleSendChat} className="team-chat-input-form">
-                <input
-                  type="file"
-                  ref={teamFileInputRef}
-                  style={{ display: "none" }}
-                  accept=".pdf,.docx,.txt,.md,.csv,.json,.log,.pptx"
-                  onChange={handleTeamFileUpload}
-                />
-                <button
-                  type="button"
-                  className="team-attach-btn"
-                  onClick={() => teamFileInputRef.current?.click()}
-                  disabled={uploadingTeamDoc || sendingChat}
-                  title="Upload document to ingest temporarily for this team workspace"
-                >
-                  {uploadingTeamDoc ? <Loader2 size={16} className="spin-animate" /> : <Paperclip size={16} />}
-                </button>
-                <input
-                  type="text"
-                  placeholder={
-                    chatMode === "team"
-                      ? `Message teammates in ${currentTeam.name} (e.g. Rahul, finish the API in 2 days)...`
-                      : teamTempDocs.length > 0
-                      ? `Ask Team AI Assistant about "${teamTempDocs[0].name}" or ${currentTeam.project_name}...`
-                      : `Ask Team AI Assistant about ${currentTeam.project_name}...`
-                  }
-                  value={inputMessage}
-                  onChange={(e) => setInputMessage(e.target.value)}
-                  disabled={sendingChat}
-                />
-                <button type="submit" className="btn-primary" disabled={sendingChat || !inputMessage.trim()}>
-                  {sendingChat ? (chatMode === "team" ? "Sending..." : "Querying...") : <Send size={16} />}
-                </button>
-              </form>
+              <div className="team-chat-input-wrap">
+                <form onSubmit={handleSendChat} className="glowing-glass-input-wrapper">
+                  <input
+                    type="file"
+                    ref={teamFileInputRef}
+                    style={{ display: "none" }}
+                    accept=".pdf,.docx,.txt,.md,.csv,.json,.log,.pptx"
+                    onChange={handleTeamFileUpload}
+                  />
+                  <div className="glowing-glass-input-inner">
+                    <input
+                      type="text"
+                      className="chatbot-sticky-textarea"
+                      style={{ minHeight: "38px", padding: "6px 8px" }}
+                      placeholder={
+                        chatMode === "team"
+                          ? `Message teammates in ${currentTeam.name} (e.g. Rahul, finish the API in 2 days)...`
+                          : teamTempDocs.length > 0
+                          ? `Ask Team AI Assistant about "${teamTempDocs[0].name}" or ${currentTeam.project_name}...`
+                          : `Ask Team AI Assistant about ${currentTeam.project_name}...`
+                      }
+                      value={inputMessage}
+                      onChange={(e) => setInputMessage(e.target.value)}
+                      disabled={sendingChat}
+                    />
+                    <div className="glowing-input-toolbar">
+                      <div className="toolbar-left-group">
+                        <button
+                          type="button"
+                          className="chatbot-attach-btn"
+                          onClick={() => teamFileInputRef.current?.click()}
+                          disabled={uploadingTeamDoc || sendingChat}
+                          title="Upload document to ingest temporarily for this team workspace"
+                        >
+                          {uploadingTeamDoc ? <Loader2 size={16} className="animate-spin" /> : <Paperclip size={16} />}
+                        </button>
+                        <div className="mic-status-pill">
+                          <Sparkles size={11} style={{ color: "var(--accent)" }} />
+                          <span>{chatMode === "team" ? "Team Channel" : "Team RAG"}</span>
+                        </div>
+                      </div>
+                      <button
+                        type="submit"
+                        className="round-send-btn"
+                        disabled={sendingChat || !inputMessage.trim()}
+                        title="Send message"
+                      >
+                        {sendingChat ? <Loader2 size={16} className="animate-spin" /> : <Send size={15} />}
+                      </button>
+                    </div>
+                  </div>
+                </form>
+              </div>
             </div>
           </main>
         ) : (
@@ -1067,7 +1144,7 @@ export default function TeamsPage({ currentUser }: TeamsPageProps) {
             <form onSubmit={handleAddMember} className="team-member-modal-body">
               {/* Search Colleagues */}
               <div className="form-group">
-                <label style={{ fontSize: "12px", fontWeight: 700, color: "#475569" }}>
+                <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)" }}>
                   Select Colleague
                 </label>
                 <div className="team-search-box">
@@ -1121,7 +1198,7 @@ export default function TeamsPage({ currentUser }: TeamsPageProps) {
                   })}
 
                 {allUsers.filter((u) => !currentTeam.members.some((m) => String(m.user_id) === String(u.id))).length === 0 && (
-                  <div style={{ textAlign: "center", padding: "16px", color: "#64748b", fontSize: "12.5px" }}>
+                  <div style={{ textAlign: "center", padding: "16px", color: "var(--text-muted)", fontSize: "12.5px" }}>
                     All available enterprise colleagues are already members of this team.
                   </div>
                 )}
@@ -1129,7 +1206,7 @@ export default function TeamsPage({ currentUser }: TeamsPageProps) {
 
               {/* Team Role Cards */}
               <div className="form-group">
-                <label style={{ fontSize: "12px", fontWeight: 700, color: "#475569" }}>
+                <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)" }}>
                   Role in Team
                 </label>
                 <div className="role-selection-grid">
