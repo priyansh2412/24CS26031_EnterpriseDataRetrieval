@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import {
+  Building2,
   BarChart3,
   Files,
   LogOut,
@@ -33,7 +34,7 @@ import TeamsPage from "./pages/TeamsPage";
 import ProfilePage from "./pages/ProfilePage";
 import LinkedDevicesPage from "./pages/LinkedDevicesPage";
 import SystemEnterprisePortal from "./pages/SystemEnterprisePortal";
-import { SetupStatus, UserProfile, request, token } from "./api";
+import { SetupStatus, UserProfile, request, token, clearAuthToken } from "./api";
 
 type NavRoute = {
   id: string;
@@ -88,7 +89,7 @@ export default function App() {
           }
         })
         .catch(() => {
-          localStorage.removeItem("rag_token");
+          clearAuthToken();
           setAuthenticated(false);
         });
     }
@@ -178,6 +179,8 @@ export default function App() {
   //   - Team Workspaces is hidden for Admin
   // For Ranks other than 1 (Rank 2, 3, 4, etc.):
   //   - Strictly only 4 tabs: 1. Dashboard, 2. AI Search Sessions, 3. Team Workspaces, 4. My Profile
+  const isSuperAdmin = user?.email === "system@gmailexample.com" || (user?.rank_level ?? 5) === 0 || user?.role_key === "system_admin";
+
   const allowedNav = NAV_ITEMS.filter((item) => {
     if (isAdmin) {
       if (item.hideForAdmin) return false;
@@ -194,6 +197,15 @@ export default function App() {
     }
     return item;
   });
+
+  if (isSuperAdmin && !allowedNav.some((i) => i.id === "enterprises")) {
+    allowedNav.unshift({
+      id: "enterprises",
+      path: "/enterprises",
+      label: "Enterprise Gateway",
+      icon: Building2,
+    });
+  }
 
   const activeNavItem = NAV_ITEMS.find((item) => item.path === currentPath);
   const isAuthorized = isAdmin
@@ -277,7 +289,7 @@ export default function App() {
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                localStorage.removeItem("rag_token");
+                clearAuthToken();
                 setAuthenticated(false);
               }}
               title="Sign Out"
@@ -335,7 +347,7 @@ export default function App() {
           </div>
         </header>
 
-        <section className={`app-content ${currentPath === "/chat" ? "chat-mode" : ""}`}>
+        <section className={`app-content ${currentPath === "/chat" ? "chat-mode" : ""} ${currentPath === "/teams" ? "teams-mode" : ""}`}>
           {!isAuthorized && (
             <div className="alert-banner error margin-bottom">
               <AlertCircle size={16} />

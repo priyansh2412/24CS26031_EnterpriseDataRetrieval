@@ -134,35 +134,34 @@ def ask(
     )
 
     if raw_points:
-        top_pt = raw_points[0]
-        # If the top semantically relevant match has score >= 0.50
-        if (top_pt.score or 0) >= 0.50:
-            top_payload = top_pt.payload or {}
-            if not check_document_payload_access(top_payload, user, db):
-                denied_answer = "sorry you can not access this information . "
-                log = QueryLog(
-                    tenant_id=eff_tenant,
-                    user_id=user.id,
-                    team_id=payload.team_id,
-                    session_id=sess_id,
-                    query=payload.question,
-                    response=denied_answer,
-                    retrieved_document_ids="[]",
-                    citations_json="[]",
-                )
-                db.add(log)
-                db.commit()
-                db.refresh(log)
+        for pt in raw_points[:3]:
+            if (pt.score or 0) >= 0.35:
+                top_payload = pt.payload or {}
+                if not check_document_payload_access(top_payload, user, db):
+                    denied_answer = "you can not access this information."
+                    log = QueryLog(
+                        tenant_id=eff_tenant,
+                        user_id=user.id,
+                        team_id=payload.team_id,
+                        session_id=sess_id,
+                        query=payload.question,
+                        response=denied_answer,
+                        retrieved_document_ids="[]",
+                        citations_json="[]",
+                    )
+                    db.add(log)
+                    db.commit()
+                    db.refresh(log)
 
-                log_access(db, user, "ask:denied", "knowledge_base", str(log.id), f"Access denied to doc {top_payload.get('document_id')}")
-                db.commit()
+                    log_access(db, user, "ask:denied", "knowledge_base", str(log.id), f"Access denied to doc {top_payload.get('document_id')}")
+                    db.commit()
 
-                return AskResponse(
-                    query_log_id=log.id,
-                    answer=denied_answer,
-                    citations=[],
-                    session_id=sess_id,
-                )
+                    return AskResponse(
+                        query_log_id=log.id,
+                        answer=denied_answer,
+                        citations=[],
+                        session_id=sess_id,
+                    )
 
     # 2. Retrieve authorized chunks strictly from user's enterprise tenant
     raw_chunks = retrieve_authorized_chunks(
@@ -174,9 +173,9 @@ def ask(
         tenant_id=eff_tenant
     )
 
-    # If raw_points had relevant content (score >= 0.50) but raw_chunks is empty due to ACL
-    if not raw_chunks and raw_points and (raw_points[0].score or 0) >= 0.50:
-        denied_answer = "sorry you can not access this information . "
+    # If raw_points had relevant content (score >= 0.35) but raw_chunks is empty due to ACL
+    if not raw_chunks and raw_points and (raw_points[0].score or 0) >= 0.35:
+        denied_answer = "you can not access this information."
         log = QueryLog(
             tenant_id=eff_tenant,
             user_id=user.id,

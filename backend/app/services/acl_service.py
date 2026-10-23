@@ -180,11 +180,11 @@ def process_acl_outbox(db: Session):
                 )
                 .all()
             )
-            pkeys = [r[0] for r in acl_rows]
+            # Exclude tenant keys so tenant membership does not bypass role-based access control!
+            pkeys = [r[0] for r in acl_rows if not r[0].startswith("t:")]
             if not pkeys:
                 # Default fallback
                 pkeys = [
-                    f"t:{t_id or settings.default_tenant_id}",
                     "r:employee",
                     "r:admin"
                 ]
@@ -197,7 +197,16 @@ def process_acl_outbox(db: Session):
                 )
                 .all()
             )
-            denied_pkeys = [r[0] for r in deny_rows]
+            denied_set = set()
+            for r in deny_rows:
+                k = r[0]
+                denied_set.add(k)
+                if k.startswith("u:"):
+                    clean = k[2:]
+                    denied_set.add(clean)
+                else:
+                    denied_set.add(f"u:{k}")
+            denied_pkeys = sorted(list(denied_set))
 
             update_document_acl_payload(
                 document_id=item.document_id,

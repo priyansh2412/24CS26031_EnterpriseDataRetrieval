@@ -4,7 +4,8 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.models import User
 from app.services.citation_service import format_context_prompt
-from app.services.embedding_service import get_genai_client
+from app.services.embedding_service import embed_text, get_genai_client
+from app.services.qdrant_service import search
 from app.services.retrieval_service import retrieve_authorized_chunks
 
 SYSTEM_INSTRUCTION = """You are an intelligent, precise enterprise RAG assistant.
@@ -41,6 +42,25 @@ def answer_question(
     )
 
     if not chunks:
+        eff_tenant = str(user.tenant_id if user and getattr(user, "tenant_id", None) else settings.default_tenant_id)
+        if user:
+            try:
+                raw_pts = search(
+                    vector=embed_text(question),
+                    limit=3,
+                    tenant_id=eff_tenant,
+                    principal_keys=None,
+                    document_id=document_id,
+                )
+                if raw_pts and (raw_pts[0].score or 0) >= 0.35:
+                    return {
+                        "answer": "you can not access this information.",
+                        "sources": [],
+                        "citations": [],
+                    }
+            except Exception:
+                pass
+
         return {
             "answer": "I could not find any relevant information in your authorized documents to answer your question.",
             "sources": [],

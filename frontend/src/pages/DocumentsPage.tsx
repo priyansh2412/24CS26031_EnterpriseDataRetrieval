@@ -1036,22 +1036,20 @@ export default function DocumentsPage() {
                 </div>
               </div>
 
-              {/* Section 3: Folder Propagation Toggle */}
-              {editingDoc.folder_path && editingDoc.folder_path !== "/" && (
-                <div style={{ background: "var(--surface-2)", padding: "12px 16px", borderRadius: "var(--radius-md)", border: "1px dashed var(--border)" }}>
-                  <label style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer", fontSize: "13px", color: "var(--text)", fontWeight: "600" }}>
-                    <input
-                      type="checkbox"
-                      checked={applyToFolder}
-                      onChange={(e) => setApplyToFolder(e.target.checked)}
-                      style={{ width: "16px", height: "16px", cursor: "pointer" }}
-                    />
-                    <span>
-                      Apply these permissions and deny rules to ALL documents inside folder '{editingDoc.folder_path}'
-                    </span>
-                  </label>
-                </div>
-              )}
+              {/* Section 3: Folder / Workspace Propagation Toggle */}
+              <div style={{ background: "var(--surface-2)", padding: "12px 16px", borderRadius: "var(--radius-md)", border: "1px dashed var(--border)" }}>
+                <label style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer", fontSize: "13px", color: "var(--text)", fontWeight: "600" }}>
+                  <input
+                    type="checkbox"
+                    checked={applyToFolder}
+                    onChange={(e) => setApplyToFolder(e.target.checked)}
+                    style={{ width: "16px", height: "16px", cursor: "pointer" }}
+                  />
+                  <span>
+                    Apply these permissions and deny rules to ALL documents {editingDoc.folder_path && editingDoc.folder_path !== "/" ? `inside folder '${editingDoc.folder_path}'` : "in this workspace"}
+                  </span>
+                </label>
+              </div>
             </div>
 
             {/* Modal Footer */}

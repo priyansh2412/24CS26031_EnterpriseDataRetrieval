@@ -14,7 +14,7 @@ import {
   Layers,
 } from "lucide-react";
 import EnterprisesPage from "./EnterprisesPage";
-import { UserProfile, login, request, token } from "../api";
+import { UserProfile, login, request, token, clearAuthToken } from "../api";
 
 interface SystemEnterprisePortalProps {
   theme: "light" | "dark";
@@ -79,7 +79,7 @@ export default function SystemEnterprisePortal({
   };
 
   const handleLogout = () => {
-    localStorage.removeItem("rag_token");
+    clearAuthToken();
     setSystemUser(null);
     setEmail("system@gmailexample.com");
     setPassword("System123@");
@@ -230,19 +230,22 @@ export default function SystemEnterprisePortal({
         </div>
       </aside>
 
-      {/* Main Content Pane */}
-      <div className="main-pane">
+      {/* Main Content Pane with Scroll Container */}
+      <div className="app-main-wrapper main-pane">
         {/* Top Header */}
-        <header className="top-header">
-          <div className="header-breadcrumbs">
-            <span className="crumb-app">SYSTEM GATEWAY</span>
-            <span className="crumb-sep">/</span>
-            <span className="crumb-current">Connected Enterprises</span>
+        <header className="top-nav-bar top-header">
+          <div className="top-nav-left header-breadcrumbs">
+            <div className="breadcrumb">
+              <span className="crumb-app" style={{ fontSize: "11px", fontWeight: 700, color: "var(--text-muted)", letterSpacing: "0.5px" }}>SYSTEM GATEWAY</span>
+              <span className="sep">/</span>
+              <strong className="current-page-title" style={{ fontSize: "13.5px", fontWeight: 700, color: "var(--text)" }}>Connected Enterprises</strong>
+            </div>
           </div>
 
-          <div className="header-controls">
+          <div className="top-nav-right-actions header-controls">
             <button
-              className="btn-theme-toggle"
+              type="button"
+              className="theme-toggle-btn btn-theme-toggle"
               onClick={onToggleTheme}
               title={`Switch to ${theme === "light" ? "Dark" : "Light"} theme`}
             >
@@ -259,8 +262,8 @@ export default function SystemEnterprisePortal({
           </div>
         </header>
 
-        {/* Content Area with Only Connected Enterprises */}
-        <section className="app-content">
+        {/* Content Area with Smooth Scrollable Viewport */}
+        <section className="app-content ent-portal-content">
           <EnterprisesPage currentUser={systemUser} />
         </section>
       </div>

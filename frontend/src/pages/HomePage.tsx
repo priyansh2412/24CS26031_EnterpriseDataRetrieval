@@ -694,6 +694,23 @@ export default function HomePage({
                     <span><strong>Staff</strong> (Collaborator Rank 4)</span>
                     <ArrowRight size={13} />
                   </button>
+                  <button
+                    type="button"
+                    className="chip-btn"
+                    style={{
+                      justifyContent: "space-between",
+                      marginTop: "4px",
+                      background: "rgba(99, 102, 241, 0.08)",
+                      border: "1px solid rgba(99, 102, 241, 0.3)"
+                    }}
+                    onClick={() => {
+                      window.location.href = "/enterprises";
+                    }}
+                    title="Launch Master Super-Admin Enterprise Portal"
+                  >
+                    <span><strong style={{ color: "var(--accent)" }}>Super-Admin Gateway</strong> (Tenant Management)</span>
+                    <ArrowRight size={13} style={{ color: "var(--accent)" }} />
+                  </button>
                 </div>
               </div>
             </div>

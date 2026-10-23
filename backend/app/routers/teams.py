@@ -12,10 +12,13 @@ from app.models import AuditLog, Document, JiraIssueLink, LogSeverity, Team, Tea
 from app.schemas import Citation, JiraIssueOut, TeamChatMessageOut, TeamCreate, TeamMemberAdd, TeamMemberOut, TeamOut
 from app.services.access import log_access
 from app.services.citation_service import format_context_prompt
+from app.services.embedding_service import embed_text
 from app.services.ingestion_service import ingest_temporary_document, delete_temporary_document
 from app.services.llm import generate_answer
+from app.services.qdrant_service import search
 from app.services.retrieval_service import retrieve_authorized_chunks
 from app.services.team_intel_service import process_message_for_jira
+from app.routers.chat import check_document_payload_access
 
 router = APIRouter(prefix="/api/teams", tags=["teams"])
 
@@ -165,6 +168,16 @@ def add_team_member(team_id: int, payload: TeamMemberAdd, db: Session = Depends(
     target_tenant = str(target_user.tenant_id) if target_user.tenant_id else None
     if user_tenant and target_tenant and target_tenant != user_tenant:
         raise HTTPException(status_code=400, detail="Cannot add a user from a different enterprise to this team")
+
+    # 4. Enforce rank hierarchy: colleagues can only add users strictly below their rank
+    if not _is_system_admin(current_user):
+        my_rank = getattr(current_user, "rank_level", 5) or 5
+        target_rank = getattr(target_user, "rank_level", 5) or 5
+        if target_rank <= my_rank:
+            raise HTTPException(
+                status_code=403,
+                detail=f"Hierarchy restriction: As Rank {my_rank}, you can only add colleagues below your rank (Rank > {my_rank}). Selected colleague is Rank {target_rank}."
+            )
 
     existing = db.query(TeamMember).filter(TeamMember.team_id == team_id, TeamMember.user_id == target_user.id).first()
     if existing:
@@ -383,19 +396,46 @@ def send_team_chat_message(
         )
 
     # mode == "ai" (default Ask AI behavior)
-    raw_chunks = retrieve_authorized_chunks(
-        question=message_text,
-        db=db,
-        user=current_user,
-        top_k=5,
-        project_id=str(team.id),
-        tenant_id=eff_tenant
+    # Check if this query matches any restricted/denied content before answering
+    is_access_denied = False
+    query_vector = embed_text(message_text)
+    raw_points = search(
+        vector=query_vector,
+        limit=5,
+        tenant_id=eff_tenant,
+        principal_keys=None,
     )
-    _, citations = format_context_prompt(raw_chunks)
+    if raw_points:
+        for pt in raw_points[:3]:
+            if (pt.score or 0) >= 0.35:
+                top_payload = pt.payload or {}
+                if not check_document_payload_access(top_payload, current_user, db):
+                    is_access_denied = True
+                    break
 
-    # Add team project context to prompt
-    prompt_with_project_context = f"[Project Scope: {team.project_name} | Team: {team.name}]\n{message_text}"
-    answer = generate_answer(question=prompt_with_project_context, citations=citations)
+    if not is_access_denied:
+        raw_chunks = retrieve_authorized_chunks(
+            question=message_text,
+            db=db,
+            user=current_user,
+            top_k=5,
+            project_id=str(team.id),
+            tenant_id=eff_tenant
+        )
+        if not raw_chunks and raw_points and (raw_points[0].score or 0) >= 0.35:
+            # Document existed in tenant and was semantically matched, but user has no ACL permission
+            is_access_denied = True
+    else:
+        raw_chunks = []
+
+    if is_access_denied:
+        answer = "you can not access this information."
+        citations = []
+    else:
+        _, citations = format_context_prompt(raw_chunks)
+        # Add team project context to prompt
+        prompt_with_project_context = f"[Project Scope: {team.project_name} | Team: {team.name}]\n{message_text}"
+        answer = generate_answer(question=prompt_with_project_context, citations=citations)
 
     citations_json = json.dumps([c.model_dump() for c in citations])
 

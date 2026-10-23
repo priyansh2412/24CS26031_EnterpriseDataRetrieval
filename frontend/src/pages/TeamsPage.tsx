@@ -116,7 +116,7 @@ export default function TeamsPage({ currentUser }: TeamsPageProps) {
   // Jira Integration State
   const [jiraStatus, setJiraStatus] = useState<JiraStatus | null>(null);
   const [linkedJiraIssues, setLinkedJiraIssues] = useState<JiraLinkItem[]>([]);
-  const [jiraBarOpen, setJiraBarOpen] = useState(true);
+  const [jiraBarOpen, setJiraBarOpen] = useState(false);
   const [showJiraModal, setShowJiraModal] = useState(false);
   const [jiraProjectKeyInput, setJiraProjectKeyInput] = useState("");
   const [savingJiraSettings, setSavingJiraSettings] = useState(false);
@@ -1121,7 +1121,7 @@ export default function TeamsPage({ currentUser }: TeamsPageProps) {
       {/* ADD MEMBER MODAL */}
       {showAddMemberModal && currentTeam && (
         <div className="modal-overlay" onClick={() => setShowAddMemberModal(false)}>
-          <div className="modal-content animated-scale-up" onClick={(e) => e.stopPropagation()}>
+          <div className="modal-content add-member-modal animated-scale-up" onClick={(e) => e.stopPropagation()}>
             <header className="modal-header">
               <div className="glow-icon">
                 <UserPlus size={22} />
@@ -1142,72 +1142,166 @@ export default function TeamsPage({ currentUser }: TeamsPageProps) {
             </header>
 
             <form onSubmit={handleAddMember} className="team-member-modal-body">
-              {/* Search Colleagues */}
-              <div className="form-group">
-                <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)" }}>
-                  Select Colleague
-                </label>
-                <div className="team-search-box">
-                  <Search size={15} className="search-icon" />
-                  <input
-                    type="text"
-                    placeholder="Search colleagues by email, name, or role..."
-                    value={userSearchTerm}
-                    onChange={(e) => setUserSearchTerm(e.target.value)}
-                  />
-                </div>
-              </div>
+              {/* Hierarchy Policy Banner */}
+              {(() => {
+                const myRank = currentUser?.rank_level ?? 5;
+                const isSysAdmin = currentUser?.email === "system@gmailexample.com" || (currentUser?.role === "admin" && myRank === 0);
+                return (
+                  <div className={`hierarchy-info-banner ${isSysAdmin ? "sysadmin-banner" : ""}`}>
+                    <div className="hierarchy-banner-icon">
+                      {isSysAdmin ? <Crown size={16} /> : <ShieldCheck size={16} />}
+                    </div>
+                    <div className="hierarchy-banner-text">
+                      {isSysAdmin ? (
+                        <span>
+                          <strong>System Admin Access:</strong> You can assign colleagues across any enterprise rank level.
+                        </span>
+                      ) : (
+                        <span>
+                          <strong>Hierarchy RBAC Active:</strong> As <strong>Rank {myRank}</strong> ({currentUser?.role_key || currentUser?.role || "Staff"}), you can only assign colleagues ranked strictly below your level (<strong>Ranks {myRank + 1} to 5</strong>).
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
 
-              {/* Scrollable Candidate Cards */}
-              <div className="candidate-users-list">
-                {allUsers
+              {/* Search Colleagues */}
+              {(() => {
+                const myRank = currentUser?.rank_level ?? 5;
+                const isSysAdmin = currentUser?.email === "system@gmailexample.com" || (currentUser?.role === "admin" && myRank === 0);
+
+                const eligibleColleagues = allUsers
                   .filter((u) => !currentTeam.members.some((m) => String(m.user_id) === String(u.id)))
+                  .filter((u) => String(u.id) !== String(currentUser?.id))
                   .filter((u) => {
-                    if (!userSearchTerm.trim()) return true;
-                    const q = userSearchTerm.toLowerCase();
-                    return (
-                      u.email.toLowerCase().includes(q) ||
-                      (u.role_key && u.role_key.toLowerCase().includes(q)) ||
-                      (u.display_name && u.display_name.toLowerCase().includes(q))
-                    );
-                  })
-                  .map((u) => {
-                    const isSelected = selectedUserId === String(u.id);
-                    return (
-                      <div
-                        key={String(u.id)}
-                        className={`candidate-user-card ${isSelected ? "selected" : ""}`}
-                        onClick={() => setSelectedUserId(String(u.id))}
-                      >
-                        <div className="user-card-left">
-                          <div className="user-avatar-circle">
-                            {(u.display_name || u.email).charAt(0).toUpperCase()}
-                          </div>
-                          <div className="user-card-info">
-                            <span className="user-card-email">{u.email}</span>
-                            <div className="user-card-sub">
-                              <span className="rank-badge-pill">Rank {u.rank_level}</span>
-                              <span className="role-key-pill">{u.role_key || u.role}</span>
-                              {u.display_name && <span>• {u.display_name}</span>}
+                    if (isSysAdmin) return true;
+                    if (currentUser?.tenant_id && u.tenant_id && String(currentUser.tenant_id) !== String(u.tenant_id)) {
+                      return false;
+                    }
+                    return (u.rank_level ?? 5) > myRank;
+                  });
+
+                const searchedCandidates = eligibleColleagues.filter((u) => {
+                  if (!userSearchTerm.trim()) return true;
+                  const q = userSearchTerm.toLowerCase();
+                  return (
+                    u.email.toLowerCase().includes(q) ||
+                    (u.role_key && u.role_key.toLowerCase().includes(q)) ||
+                    (u.role && u.role.toLowerCase().includes(q)) ||
+                    (u.display_name && u.display_name.toLowerCase().includes(q))
+                  );
+                });
+
+                return (
+                  <>
+                    <div className="form-group">
+                      <div className="label-with-badge">
+                        <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)" }}>
+                          Select Colleague
+                        </label>
+                        <span className="candidate-count-tag">
+                          {searchedCandidates.length} eligible
+                        </span>
+                      </div>
+                      <div className="team-search-box">
+                        <Search size={15} className="search-icon" />
+                        <input
+                          type="text"
+                          placeholder="Search by email, name, or role..."
+                          value={userSearchTerm}
+                          onChange={(e) => setUserSearchTerm(e.target.value)}
+                        />
+                        {userSearchTerm && (
+                          <button
+                            type="button"
+                            className="clear-search-btn"
+                            onClick={() => setUserSearchTerm("")}
+                            title="Clear search"
+                          >
+                            <X size={13} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Scrollable Candidate Cards */}
+                    <div className="candidate-users-list">
+                      {searchedCandidates.map((u) => {
+                        const isSelected = selectedUserId === String(u.id);
+                        const initial = (u.display_name || u.email || "U").charAt(0).toUpperCase();
+                        const rankVal = u.rank_level ?? 5;
+                        return (
+                          <div
+                            key={String(u.id)}
+                            className={`candidate-user-card ${isSelected ? "selected" : ""}`}
+                            onClick={() => setSelectedUserId(String(u.id))}
+                          >
+                            <div className="user-card-left">
+                              <div className={`user-avatar-circle rank-avatar-${rankVal}`}>
+                                {initial}
+                              </div>
+                              <div className="user-card-info">
+                                <div className="user-card-top-row">
+                                  <span className="user-card-name">
+                                    {u.display_name || u.email.split("@")[0]}
+                                  </span>
+                                  <span className={`rank-badge-pill rank-${rankVal}`}>
+                                    Rank {rankVal}
+                                  </span>
+                                </div>
+                                <span className="user-card-email">{u.email}</span>
+                                <div className="user-card-sub">
+                                  <span className="role-key-pill">{u.role_key || u.role}</span>
+                                  {u.enterprise_name && <span className="tenant-pill">{u.enterprise_name}</span>}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="user-card-right">
+                              {isSelected ? (
+                                <CheckCircle2 size={18} className="check-icon-active" />
+                              ) : (
+                                <div className="select-radio-circle" />
+                              )}
                             </div>
                           </div>
-                        </div>
-                        {isSelected && <CheckCircle2 size={18} className="check-icon-active" />}
-                      </div>
-                    );
-                  })}
+                        );
+                      })}
 
-                {allUsers.filter((u) => !currentTeam.members.some((m) => String(m.user_id) === String(u.id))).length === 0 && (
-                  <div style={{ textAlign: "center", padding: "16px", color: "var(--text-muted)", fontSize: "12.5px" }}>
-                    All available enterprise colleagues are already members of this team.
-                  </div>
-                )}
-              </div>
+                      {eligibleColleagues.length === 0 && (
+                        <div className="candidate-empty-state">
+                          <AlertCircle size={28} className="empty-icon" />
+                          <div className="empty-title">
+                            {myRank >= 5
+                              ? "No Subordinate Colleagues Below Your Rank"
+                              : "No Available Colleagues"}
+                          </div>
+                          <p className="empty-desc">
+                            {myRank >= 5
+                              ? `You are at Rank ${myRank} (baseline employee rank). Company RBAC policy requires Rank 4 or higher to add subordinate team members.`
+                              : `All colleagues below your rank (Rank ${myRank}) are already in this team, or no other colleagues exist.`}
+                          </p>
+                        </div>
+                      )}
+
+                      {eligibleColleagues.length > 0 && searchedCandidates.length === 0 && (
+                        <div className="candidate-empty-state">
+                          <Search size={24} className="empty-icon" />
+                          <div className="empty-title">No Matching Colleagues</div>
+                          <p className="empty-desc">
+                            No eligible colleague found matching "{userSearchTerm}".
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                );
+              })()}
 
               {/* Team Role Cards */}
               <div className="form-group">
                 <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)" }}>
-                  Role in Team
+                  Assign Role in Team
                 </label>
                 <div className="role-selection-grid">
                   <div
@@ -1215,9 +1309,9 @@ export default function TeamsPage({ currentUser }: TeamsPageProps) {
                     onClick={() => setTeamRole("member")}
                   >
                     <div className="role-option-title">
-                      <Users size={14} /> Team Member
+                      <Users size={15} /> <span>Team Member</span>
                     </div>
-                    <div className="role-option-desc">Collaborator with shared team RAG chat & search access</div>
+                    <div className="role-option-desc">Collaborator with team workspace RAG search & chat access</div>
                   </div>
 
                   <div
@@ -1225,7 +1319,7 @@ export default function TeamsPage({ currentUser }: TeamsPageProps) {
                     onClick={() => setTeamRole("lead")}
                   >
                     <div className="role-option-title">
-                      <Crown size={14} /> Team Lead
+                      <Crown size={15} /> <span>Team Lead</span>
                     </div>
                     <div className="role-option-desc">Project lead with membership management permissions</div>
                   </div>
@@ -1247,7 +1341,17 @@ export default function TeamsPage({ currentUser }: TeamsPageProps) {
                   className="btn-primary"
                   disabled={!selectedUserId || addingMember}
                 >
-                  <UserPlus size={15} /> {addingMember ? "Adding Member..." : "Add to Team"}
+                  {addingMember ? (
+                    <>
+                      <Loader2 size={15} className="spin-animate" />
+                      <span>Adding Member...</span>
+                    </>
+                  ) : (
+                    <>
+                      <UserPlus size={15} />
+                      <span>Add to Team</span>
+                    </>
+                  )}
                 </button>
               </div>
             </form>

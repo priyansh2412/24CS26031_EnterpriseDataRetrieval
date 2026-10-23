@@ -173,7 +173,26 @@ const PRIMARY_API = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
 const FALLBACK_API = "http://127.0.0.1:8001";
 let activeApi = PRIMARY_API;
 
-export const token = () => localStorage.getItem("rag_token");
+export const token = (): string | null => {
+  const sessionTok = sessionStorage.getItem("rag_token");
+  if (sessionTok) return sessionTok;
+  const localTok = localStorage.getItem("rag_token");
+  if (localTok) {
+    sessionStorage.setItem("rag_token", localTok);
+    return localTok;
+  }
+  return null;
+};
+
+export const setAuthToken = (newToken: string) => {
+  sessionStorage.setItem("rag_token", newToken);
+  localStorage.setItem("rag_token", newToken);
+};
+
+export const clearAuthToken = () => {
+  sessionStorage.removeItem("rag_token");
+  localStorage.removeItem("rag_token");
+};
 
 export interface TempDocItem {
   document_id: string;
@@ -257,7 +276,7 @@ export async function login(email: string, password: string): Promise<void> {
   }
 
   const data = await response.json();
-  localStorage.setItem("rag_token", data.access_token);
+  setAuthToken(data.access_token);
 }
 
 export async function forgotPassword(email: string): Promise<{ message: string }> {

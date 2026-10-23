@@ -1,4 +1,5 @@
 from pathlib import Path
+import uuid
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -181,11 +182,35 @@ def update_access(
     document.access_roles = json.dumps(role_strings)
     document.denied_users = json.dumps(denied_strings)
 
-    allowed_pkeys = [f"r:{r}" for r in role_strings] + [
-        f"t:{document.tenant_id or eff_tenant}",
-        "r:admin",
-    ]
-    denied_pkeys = [f"u:{du}" for du in denied_strings]
+    # Build allowed principal keys (roles, groups, admin) - strictly DO NOT include tenant key
+    # so that tenant members do not automatically inherit document access without role authorization!
+    allowed_pkeys_set = set()
+    for r in role_strings:
+        allowed_pkeys_set.add(f"r:{r}")
+        allowed_pkeys_set.add(f"g:{r}")
+        allowed_pkeys_set.add(f"g:group-{r}")
+    allowed_pkeys_set.add("r:admin")
+    allowed_pkeys = sorted(list(allowed_pkeys_set))
+
+    # Build denied principal keys (both u:<val> and raw <val>, plus mapped user ID/email)
+    denied_pkeys_set = set()
+    for du in denied_strings:
+        denied_pkeys_set.add(f"u:{du}")
+        denied_pkeys_set.add(du)
+        matched_user = None
+        try:
+            val_uuid = uuid.UUID(str(du))
+            matched_user = db.query(User).filter(User.id == val_uuid).first()
+        except Exception:
+            matched_user = db.query(User).filter(User.email.ilike(du)).first()
+
+        if matched_user:
+            denied_pkeys_set.add(f"u:{matched_user.id}")
+            denied_pkeys_set.add(f"u:user-{matched_user.id}")
+            denied_pkeys_set.add(str(matched_user.id))
+            denied_pkeys_set.add(f"u:{matched_user.email.lower()}")
+            denied_pkeys_set.add(matched_user.email.lower())
+    denied_pkeys = sorted(list(denied_pkeys_set))
 
     sync_document_acl_entries(
         db=db,
@@ -195,12 +220,20 @@ def update_access(
         denied_principal_keys=denied_pkeys
     )
 
-    if payload.apply_to_folder and document.folder_path:
-        siblings = db.query(Document).filter(
-            Document.tenant_id == document.tenant_id,
-            Document.folder_path == document.folder_path,
-            Document.id != document.id
-        ).all()
+    if payload.apply_to_folder:
+        if document.folder_path and document.folder_path != "/":
+            siblings = db.query(Document).filter(
+                Document.tenant_id == document.tenant_id,
+                Document.folder_path == document.folder_path,
+                Document.id != document.id,
+                Document.source.notin_(["temp_user", "temp_team"])
+            ).all()
+        else:
+            siblings = db.query(Document).filter(
+                Document.tenant_id == document.tenant_id,
+                Document.id != document.id,
+                Document.source.notin_(["temp_user", "temp_team"])
+            ).all()
         for sib in siblings:
             sib.access_roles = json.dumps(role_strings)
             sib.denied_users = json.dumps(denied_strings)
